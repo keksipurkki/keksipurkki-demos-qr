@@ -1,0 +1,7 @@
+*.o
+*.mod
+.DS_Store
+bitmaps
+svd
+test
+*.txt
