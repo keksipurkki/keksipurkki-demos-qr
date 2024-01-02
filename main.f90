@@ -22,7 +22,7 @@ program main
   contains
 
     function data_matrix()
-      real(real64) :: data_matrix(11, 11)
+      real(real64) :: data_matrix(52, 52)
       integer :: i
       data_matrix = -2.0d0
 

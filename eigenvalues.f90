@@ -13,7 +13,6 @@ module eigenvalues
       real(real64), allocatable, target :: H(:,:)
       real(real64), pointer :: S(:,:)
       integer :: m, mk, n, i, k
-      real(real64), parameter :: eps = epsilon(1.0_real64)
 
       m = size(X, 1)
       n = size(X, 2)
@@ -43,7 +42,6 @@ module eigenvalues
 
         if (mk >= 3) then
           H = eig_shifted_double_step(H)
-          !H = eig_step(H)
         else if (mk == 2) then
           L(1:2) = eig_2(H)
           exit
@@ -53,11 +51,17 @@ module eigenvalues
         endif
 
         ! Deflation
-        if (H(mk - 1, mk - 2) ** 2 <= eps) then
-          L(mk - 1 : mk) = eig_2(H(mk - 1:, mk - 1:))
+        if (eig_is_deflatable(H(mk - 1, mk - 2))) then
+          L(mk - 1 : mk) = eig_2(H(mk - 1:, mk - 1:)) ! 2x2 block
           H = H(:mk - 2, :mk - 2)
+        else if (eig_is_deflatable(H(mk, mk - 1))) then
+          L(mk) = H(mk,mk) ! 1x1 block
+          H = H(:mk - 1, :mk - 1)
+        else if (eig_is_deflatable(H(2,1))) then
+          L(mk) = H(1,1) ! 1x1 block
+          H = H(2:, 2:)
         end if
-
+ 
         k = k + 1
 
         if (k >= itermax) then
@@ -68,42 +72,10 @@ module eigenvalues
 
     end subroutine
 
-    ! H is assumed to be in upper Hessenberg form
-    function eig_step(H) result(Hout)
-      real(real64), intent(in) :: H(:,:)
-      real(real64), allocatable, target :: Hout(:,:)
-      real(real64), pointer :: X(:,:)
-      real(real64), target, allocatable :: V(:,:)
-      real(real64), allocatable :: u(:), vcol(:,:), vrow(:,:)
-
-      integer :: j, n
-
-      Hout = H
-
-      n = size(Hout, 1)
-      allocate(V(2, n - 1), source=0.d0)
-
-      do j = 1, n - 1
-        u = Hout(j:j+1, j)
-        u(1) = u(1) + sign(1.d0, u(1)) * norm2(u)
-
-        V(:,j) = u / norm2(u)
-
-        vrow = reshape(V(:,j), [1, 2])
-        vcol = reshape(V(:,j), [2, 1])
-
-        X => Hout(j:j+1,:)
-        X = X - 2 * matmul(vcol, matmul(vrow, X))
-
-      enddo
-
-      do j = 1, n - 1
-        vrow = reshape(V(:,j), [1, 2])
-        vcol = reshape(V(:,j), [2, 1])
-        X => Hout(:, j:j+1)
-        X = X - matmul(matmul(X, 2 * vcol), vrow)
-      enddo
-
+    pure logical function eig_is_deflatable(v)
+      real(real64), intent(in) :: v
+      real(real64), parameter :: eps = epsilon(1.0_real64)
+      eig_is_deflatable = v*v <= eps
     end function
 
     ! Produces the vector `u` for a Householder reflection P = I - 2u*transpose(u)
