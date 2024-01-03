@@ -6,6 +6,10 @@ COMPILER := gfortran $(FLAGS)
 all: $(PROG)
 	@./$(PROG)
 
+test: .PHONY
+	$(COMPILER) main.test.f90 -o test
+	./test
+
 $(PROG): $(OBJS)
 	$(COMPILER) -o $@ $^
 

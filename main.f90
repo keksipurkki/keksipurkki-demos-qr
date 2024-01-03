@@ -16,13 +16,13 @@ program main
   !call disp()
   !call disp('Q = ', q)
   call disp()
-  call disp('Λ = ', lambda, orient='row')
+  call disp('Λ =', lambda, digmax=15)
   call disp()
 
   contains
 
     function data_matrix()
-      real(real64) :: data_matrix(52, 52)
+      real(real64) :: data_matrix(10, 10)
       integer :: i
       data_matrix = -2.0d0
 
