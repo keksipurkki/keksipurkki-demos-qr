@@ -8,8 +8,7 @@ program main
   real(real64), allocatable :: X(:,:)
   real(real64), allocatable :: Q(:,:), L(:)
 
-  X = data_matrix()
-  call disp('X = ', X)
+  X = data_matrix(100)
 
   call disp()
   call eig(X, Q, L)
@@ -23,9 +22,11 @@ program main
 
   contains
 
-    function data_matrix()
-      real(real64) :: data_matrix(100, 100)
+    function data_matrix(n)
+      integer, intent(in) :: n
+      real(real64) :: data_matrix(n, n)
       integer :: i
+
       data_matrix = -2.0d0
 
       do i = i, size(data_matrix, 1)

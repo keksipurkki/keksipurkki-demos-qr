@@ -245,57 +245,66 @@ module eigenvalues
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     pure function eig_shifted_double_step_unrolled(H) result(Hk)
-      real(real64), intent(in), target :: H(:,:)
-      real(real64), allocatable :: u(:), Hshifted(:)
+      real(real64), intent(in) :: H(:,:)
       real(real64), allocatable, target :: Hk(:,:)
+      integer, parameter :: block_size = 3, shift_size = 2
+
+      real(real64), allocatable :: u(:), urow(:,:), ucol(:,:)
       real(real64), pointer :: X(:,:)
-      real(real64), allocatable :: urow(:,:), ucol(:,:), P(:,:)
-      real(real64) :: S(2,2)
+
+      real(real64) :: S(shift_size, shift_size), Hshifted(block_size)
       real(real64) :: trace, determinant
-      integer :: m, n, k, block_size
+      integer :: m, n, k, r
 
       m = size(H, 1)
       n = size(H, 2)
 
       Hk = H
 
-      if (m < 3) return
+      if (m < block_size) return
+
+      ! If this is gibberish, read up on "Implicit Q theorem"
 
       ! Pick shifts from the eigenvalues of the trailing 2x2 block
-      ! If the shifts are close to actual eigenvalues, the trailing subdiagonal
-      ! elements can be shown to converge to zero
+      ! If the shifts are close to actual eigenvalues, the two
+      ! trailing subdiagonal elements can be shown to converge to zero
       S = H(m - 1:, n - 1:)
       trace = S(1,1) + S(2,2)
       determinant = S(1,1) * S(2,2) - S(1,2) * S(2,1)
 
-      ! The first column of Hshifted = (H - λ_1*I)(H - λ_2*I)
-      ! The arithmetic here does away with complications with complex
-      ! arithmetic (λ_1 == conj(λ_2)).
-      allocate(Hshifted(3), source=0.0d0)
+      ! The first three elements of the first column of Hshifted = (H - λ_1*I)(H - λ_2*I)
+      ! The eigenvalues can be complex-valued. However, in the 2x2 case λ_1 == conj(λ_2)
+      ! which allows us to work in real arithmetic as follows:
       Hshifted(1) = H(1,1) * H(1,1) + H(1,2) * H(2,1) - trace * H(1,1) + determinant
       Hshifted(2) = H(2,1) * (H(1,1) + H(2,2) - trace)
       Hshifted(3) = H(2,1) * H(3,2)
 
-      ! Householder reflection matrix
+      ! Householder reflection
+      ! The full refection has the block structure
+      !
+      ! P = [[PP, 0],
+      !      [0,  I]]
+      !
+      ! where PP is the 3x3 Householder reflection matrix computed from Hshifted
       u = eig_reflector(Hshifted, dim=1)
       urow = reshape(u, [1, size(u)])
       ucol = reshape(u, [size(u), 1])
 
       ! Apply shifts
-      X => Hk(:3,:)
+      X => Hk(:block_size,:)
       X = X - matmul(2 * ucol, matmul(urow, X))
-      X => Hk(:,:3)
+      X => Hk(:,:block_size)
       X = X - matmul(matmul(X, 2 * ucol), urow)
 
       ! Restore upper Hessenberg structure by "bulge chasing"
       do k = 1, m - 2
-        block_size = min(m - k, 3)
-        u = eig_reflector(Hk(k + 1:k + block_size, k), dim=1)
+        r = min(m - k, block_size)
+        u = eig_reflector(Hk(k + 1:k + r, k))
         urow = reshape(u, [1, size(u)])
         ucol = reshape(u, [size(u), 1])
-        X => Hk(k + 1:k + block_size, k:)
+        X => Hk(k + 1:k + r, k:)
         X = X - matmul(2 * ucol, matmul(urow, X))
-        X => Hk(k:, k + 1:k + block_size)
+        X => Hk(k:, k + 1:k + r)
         X = X - matmul(matmul(X, 2 * ucol), urow)
       enddo
     end function
