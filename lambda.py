@@ -1,16 +1,17 @@
 #!/usr/bin/env python
 
 import numpy as np
+from sys import argv
 
-size = 50
+actual = np.loadtxt("lambda.txt")
+size = np.size(actual)
+print(size)
 
 m = -2*np.ones([size,size])
 m[np.diag_indices(size)] = range(1, size + 1)
 
 expected, vecs = np.linalg.eig(m)
 expected = sorted(expected)
-
-actual = np.loadtxt("lambda.txt")
 
 max_err = max(np.abs(expected - actual))
 
