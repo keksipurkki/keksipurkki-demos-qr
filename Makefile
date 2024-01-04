@@ -21,8 +21,9 @@ main.o: dispmodule.o eigenvalues.o
 eigenvalues.o: dispmodule.o
 
 clean:
-	rm -rf $(PROG) *.o *.mod
+	rm -rf $(PROG) test *.o *.mod
 
 dist-clean: clean
+	rm -rf *.txt
 
 .PHONY:

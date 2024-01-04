@@ -38,7 +38,7 @@ module eigenvalues
       do
 
         mk = size(H, 1)
-        call disp('H'//tostring(k)//' = ', H)
+        !call disp('H'//tostring(k)//' = ', H)
 
         k = k + 1
 
@@ -80,21 +80,46 @@ module eigenvalues
 
     end subroutine
 
+    ! Given a 3x3 block extracted along the diagonal of an upper Hessenberg
+    ! matrix, the function inspects its input for block diagonality, i.e.
+    ! whether it is in Schur form.
+    !
+    ! The size of the biggest block is returned
+    !
     pure function eig_deflation(S) result(n)
       real(real64), intent(in) :: S(3,3)
-      real(real64), parameter :: eps = epsilon(1.0_real64)
+      real(real64) :: d
       integer :: n
 
-      if (abs(S(2,1)) < eps * (abs(S(1,1)) + abs(S(2,2)))) then
-        ! First subdiagonal element
+      d = abs(S(1,1)) + abs(S(2,2))
+
+      ! First subdiagonal element S(2,1) < eps*(|S_11|+|S_22|)
+      if (d == abs(S(2,1)) + d) then
         n = 1
-      else if (abs(S(3,2)) < eps * (abs(S(2,2)) + abs(S(3,3)))) then
-        ! Second subdiagonal element
-        n = 2
-      else
-        ! Not converged
-        n = 0
+        return
       endif
+
+      d = abs(S(2,2)) + abs(S(3,3))
+
+      ! Second subdiagonal element S(3,2) < eps*(|S_22|+|S_33|)
+      if (d == abs(S(3,2)) + d) then
+        n = 2
+        return
+      endif
+
+      ! Not in Schur form
+      n = 0
+
+      !if (abs(S(2,1)) < 1e-11) then
+      !  ! First subdiagonal element
+      !  n = 1
+      !else if (abs(S(3,2)) < 1e-11) then
+      !  ! Second subdiagonal element
+      !  n = 2
+      !else
+      !  ! Not converged
+      !  n = 0
+      !endif
 
     end function
 
@@ -113,17 +138,13 @@ module eigenvalues
     pure function eig_2(X) result(L)
       real(real64), intent(in) :: X(2,2)
       complex(real64) :: L(2)
-      real(real64) :: mu, p
+      real(real64) :: m, p, discriminant
 
-      mu = (X(1,1) + X(2,2)) / 2
+      m = (X(1,1) + X(2,2)) / 2
       p = X(1,1) * X(2,2) - X(1,2) * X(2,1)
-
-      ! m + √(m² – p)
-      L(1) = mu + sqrt(mu*mu - p)
-
-      ! m - √(m² – p)
-      L(2) = mu - sqrt(mu*mu - p)
-
+      discriminant = sqrt(m*m - p)
+      L(1) = m + discriminant
+      L(2) = m - discriminant
     end function
 
     pure function eig_1(X) result(L)
