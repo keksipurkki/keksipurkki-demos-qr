@@ -11,10 +11,9 @@ module eigenvalues
       real(real64), intent(out), allocatable :: Q(:,:)
       real(real64), intent(out), allocatable :: L(:)
       real(real64), allocatable, target :: H(:,:)
-      real(real64), pointer :: sub(:)
       real(real64), allocatable :: a(:)
       real(real64), pointer :: S(:,:)
-      integer :: i, m, mk, n, k, deflation
+      integer :: m, mk, n, k, deflation
 
       m = size(X, 1)
       n = size(X, 2)
@@ -155,8 +154,8 @@ module eigenvalues
     pure function eig_reflector(x, dim) result(u)
       real(real64), intent(in) :: x(:)
       integer, optional, value :: dim
-      real(real64), allocatable :: u(:)
-      real(real64) :: rho, length
+      real(real64) :: u(size(x))
+      real(real64) :: rho
 
       if (.not.present(dim)) dim = 1
 
@@ -224,7 +223,6 @@ module eigenvalues
     pure function eig_bulge_chaser(H, k, block_size) result(P)
       real(real64), intent(in), target :: H(:,:)
       integer, intent(in) :: k, block_size
-      integer :: m
 
       real(real64) :: PP(block_size, block_size), P(size(H, 1), size(H, 2))
       real(real64), allocatable :: u(:)
@@ -248,10 +246,6 @@ module eigenvalues
       real(real64), intent(in) :: H(:,:)
       real(real64), allocatable, target :: Hk(:,:)
       integer, parameter :: block_size = 3, shift_size = 2
-
-      real(real64), allocatable :: u(:), urow(:,:), ucol(:,:)
-      real(real64), pointer :: X(:,:)
-
       real(real64) :: S(shift_size, shift_size), Hshifted(block_size)
       real(real64) :: trace, determinant
       integer :: m, n, k, r
@@ -298,10 +292,12 @@ module eigenvalues
     pure subroutine eig_reflect(H, vec, start, end, offset)
       real(real64), intent(inout), target :: H(:,:)
       integer, intent(in) :: start, end
-      integer, value, optional :: offset
+      integer, optional, value :: offset
       real(real64), intent(in) :: vec(:)
+      real(real64) :: u(size(vec))
+
       real(real64), pointer :: X(:,:)
-      real(real64), allocatable :: u(:), urow(:,:), ucol(:,:)
+      real(real64), allocatable :: urow(:,:), ucol(:,:)
 
       if (.not.present(offset)) offset = 1
 
@@ -321,8 +317,6 @@ module eigenvalues
     function eig_hessenberg(A) result(H)
       real(real64), intent(in) :: A(:,:)
       real(real64), allocatable, target :: H(:,:)
-      real(real64), allocatable :: urow(:,:), ucol(:,:), u(:)
-      real(real64), pointer :: X(:,:)
       integer :: j, n
 
       n = size(A, 1)

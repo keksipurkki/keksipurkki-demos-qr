@@ -43,7 +43,7 @@ module utils
       if (a == b) then
         n = 0
       else
-        n = sign(1.0_real64, a - b)
+        n = int(sign(1.0_real64, a - b))
       endif
     end function
 
