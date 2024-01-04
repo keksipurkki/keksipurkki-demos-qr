@@ -11,7 +11,7 @@ program main
   call disp('X = ', X)
 
   call disp()
-  call eig(X, Q, L)
+  call eig(X, Q, L, itermax=10000)
   call disp()
   call disp('Λ =', L, digmax=15)
   call disp()
@@ -19,7 +19,7 @@ program main
   contains
 
     function data_matrix()
-      real(real64) :: data_matrix(25, 25)
+      real(real64) :: data_matrix(50, 50)
       integer :: i
       data_matrix = -2.0d0
 

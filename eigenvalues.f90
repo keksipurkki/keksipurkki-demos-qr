@@ -11,8 +11,10 @@ module eigenvalues
       real(real64), intent(out), allocatable :: Q(:,:)
       real(real64), intent(out), allocatable :: L(:)
       real(real64), allocatable, target :: H(:,:)
+      real(real64), pointer :: sub(:)
+      real(real64), allocatable :: a(:)
       real(real64), pointer :: S(:,:)
-      integer :: m, mk, n, k, deflation
+      integer :: i, m, mk, n, k, deflation
 
       m = size(X, 1)
       n = size(X, 2)
@@ -31,6 +33,7 @@ module eigenvalues
 
       allocate(Q(m,m), source=0.0d0)
       allocate(L(m), source=0.0d0)
+      allocate(a(m), source=0.0d0)
 
       ! X ~ H, Hessenberg reduction
       H = eig_hessenberg(X)
@@ -56,6 +59,25 @@ module eigenvalues
           exit
         endif
 
+        sub => subdiagonal(H)
+
+        forall (i=1: mk - 1)
+          a(i) = abs(H(i,i)) + abs(H(i + 1, i + 1))
+        end forall
+
+        !call disp('sub = ', sub)
+
+        ! Adopted from LAPACK
+        ! Zero out subdiagonal elements for which H_i+1,i < eps*(|H_i,i|+|H_i+1,i+1|)
+        where (a == abs(sub) + a) sub = 0.0d0
+
+        if (count(sub == 0) > 0) then
+          call disp('size = ', size(sub))
+          call disp('zeros = ', count(sub == 0))
+        endif
+
+        ! Deflate
+
         ! Deflation (leading block)
         S => H(:3, :3)
         deflation = eig_deflation(S)
@@ -80,6 +102,13 @@ module eigenvalues
 
     end subroutine
 
+    function subdiagonal(H) result(s)
+      real(real64), intent(in), contiguous, target :: H(:,:)
+      real(real64), pointer :: tmp(:), s(:)
+      tmp(1:size(H)) => H
+      s => tmp(2::size(H,1) + 1)
+    end function
+
     ! Given a 3x3 block extracted along the diagonal of an upper Hessenberg
     ! matrix, the function inspects its input for block diagonality, i.e.
     ! whether it is in Schur form.
@@ -92,6 +121,7 @@ module eigenvalues
       integer :: n
 
       d = abs(S(1,1)) + abs(S(2,2))
+      if (d == 0.0d0) d = 1e-11
 
       ! First subdiagonal element S(2,1) < eps*(|S_11|+|S_22|)
       if (d == abs(S(2,1)) + d) then
@@ -100,6 +130,7 @@ module eigenvalues
       endif
 
       d = abs(S(2,2)) + abs(S(3,3))
+      if (d == 0.0d0) d = 1e-11
 
       ! Second subdiagonal element S(3,2) < eps*(|S_22|+|S_33|)
       if (d == abs(S(3,2)) + d) then

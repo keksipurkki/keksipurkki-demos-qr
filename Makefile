@@ -1,6 +1,6 @@
 OBJS := main.o eigenvalues.o dispmodule.o
 PROG := qr
-FLAGS := -march=native -mtune=native -O1
+FLAGS := -march=native -mtune=native -O3
 COMPILER := gfortran $(FLAGS)
 
 all: $(PROG)
