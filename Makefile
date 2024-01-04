@@ -1,6 +1,6 @@
 OBJS := main.o eigenvalues.o dispmodule.o utils.o
 PROG := qr
-FLAGS := -march=native -mtune=native -O1 -Wall -Wextra -Wno-compare-reals
+FLAGS := -march=native -fbounds-check -O3
 COMPILER := gfortran $(FLAGS)
 
 all: $(PROG)

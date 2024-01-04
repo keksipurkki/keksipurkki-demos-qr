@@ -29,7 +29,7 @@ program main
 
       data_matrix = -2.0d0
 
-      do i = i, size(data_matrix, 1)
+      do i = 1, size(data_matrix, 1)
         data_matrix(i,i) = i
       enddo
 
