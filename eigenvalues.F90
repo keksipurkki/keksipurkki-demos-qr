@@ -286,28 +286,34 @@ module eigenvalues
       !      [0,  I]]
       !
       ! where PP is the 3x3 Householder reflection matrix computed from Hshifted
-      u = eig_reflector(Hshifted, dim=1)
-      urow = reshape(u, [1, size(u)])
-      ucol = reshape(u, [size(u), 1])
-
-      ! Apply shifts
-      X => Hk(:block_size,:)
-      X = X - matmul(2 * ucol, matmul(urow, X))
-      X => Hk(:,:block_size)
-      X = X - matmul(matmul(X, 2 * ucol), urow)
+      call eig_reflect(Hk, Hshifted, 1, block_size)
 
       ! Restore upper Hessenberg structure by "bulge chasing"
       do k = 1, m - 2
         r = min(m - k, block_size)
-        u = eig_reflector(Hk(k + 1:k + r, k))
-        urow = reshape(u, [1, size(u)])
-        ucol = reshape(u, [size(u), 1])
-        X => Hk(k + 1:k + r, k:)
-        X = X - matmul(2 * ucol, matmul(urow, X))
-        X => Hk(k:, k + 1:k + r)
-        X = X - matmul(matmul(X, 2 * ucol), urow)
+        call eig_reflect(Hk, Hk(k + 1:k + r, k), k + 1, k + r, k)
       enddo
     end function
+
+    pure subroutine eig_reflect(H, vec, start, end, offset)
+      real(real64), intent(inout), target :: H(:,:)
+      integer, intent(in) :: start, end
+      integer, value, optional :: offset
+      real(real64), intent(in) :: vec(:)
+      real(real64), pointer :: X(:,:)
+      real(real64), allocatable :: u(:), urow(:,:), ucol(:,:)
+
+      if (.not.present(offset)) offset = 1
+
+      u = eig_reflector(vec, dim=1)
+      urow = reshape(u, [1, size(u)])
+      ucol = reshape(u, [size(u), 1])
+
+      X => H(start:end, offset:)
+      X = X - matmul(2 * ucol, matmul(urow, X))
+      X => H(offset:, start:end)
+      X = X - matmul(matmul(X, 2 * ucol), urow)
+    end
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -323,15 +329,7 @@ module eigenvalues
       H = A
 
       do j = 1, n - 2 ! P1, P2, P3...Pn-2 Householder reflections
-        u = eig_reflector(H(j + 1:, j), 1)
-        urow = reshape(u, [1, size(u)])
-        ucol = reshape(u, [size(u), 1])
-
-        X => H(j + 1:, :)
-        X = X - matmul(2 * ucol, matmul(urow, X))
-
-        X => H(:, j + 1:)
-        X = X - matmul(matmul(X, 2 * ucol), urow)
+        call eig_reflect(H, H(j + 1:, j), j + 1, n)
       enddo
 
     end function
