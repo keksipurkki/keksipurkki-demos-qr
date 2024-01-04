@@ -7,13 +7,14 @@ all: $(PROG)
 	@./$(PROG)
 
 test: .PHONY
-	$(COMPILER) main.test.f90 -o test
+	$(COMPILER) -c scratch.F90
+	$(COMPILER) scratch.o dispmodule.o -o test
 	./test
 
 $(PROG): $(OBJS)
 	$(COMPILER) -o $@ $^
 
-$(OBJS): %.o: %.f90
+$(OBJS): %.o: %.F90
 	$(COMPILER) -c -o $@ $<
 
 main.o: dispmodule.o eigenvalues.o utils.o
