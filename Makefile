@@ -1,6 +1,7 @@
+SIZE := 10
 OBJS := main.o eigenvalues.o dispmodule.o utils.o
 PROG := qr
-FLAGS := -march=native -fbounds-check -O3
+FLAGS := -march=native -fbounds-check -O1 -D_DEBUG -D_SIZE=$(SIZE)
 COMPILER := gfortran $(FLAGS)
 
 all: $(PROG)

@@ -1,3 +1,4 @@
+
 program main
   use display
   use utils
@@ -7,15 +8,21 @@ program main
 
   real(real64), allocatable :: X(:,:)
   real(real64), allocatable :: Q(:,:), L(:)
+  integer :: n
 
-  X = data_matrix(100)
+#ifdef _SIZE
+  n = _SIZE
+#else
+  n = 100
+#endif
+
+  X = data_matrix(n)
 
   call disp()
   call eig(X, Q, L)
   L = sorted(L)
 
-  call disp()
-  call disp('Λ =', L, digmax=15)
+  call disp('Λ', L, digmax=15, style='pad')
   call disp()
 
   call output_eigenvalues('lambda.txt', L, 15)

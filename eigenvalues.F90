@@ -11,7 +11,6 @@ module eigenvalues
       real(real64), intent(out), allocatable :: Q(:,:)
       real(real64), intent(out), allocatable :: L(:)
       real(real64), allocatable, target :: H(:,:)
-      real(real64), allocatable :: a(:)
       real(real64), pointer :: S(:,:)
       integer :: m, mk, n, k, deflation
 
@@ -19,7 +18,7 @@ module eigenvalues
       n = size(X, 2)
       k = 0
 
-      if (.not.present(itermax)) itermax = 30*m*n
+      if (.not.present(itermax)) itermax = 30 * m * n
 
       if (m /= n) then
         call disp('Expected a square matrix')
@@ -33,7 +32,6 @@ module eigenvalues
 
       allocate(Q(m,m), source=0.0d0)
       allocate(L(m), source=0.0d0)
-      allocate(a(m), source=0.0d0)
 
       ! X ~ H, Hessenberg reduction
       H = eig_hessenberg(X)
@@ -41,13 +39,15 @@ module eigenvalues
       do
 
         mk = size(H, 1)
-#ifdef DEBUG
-        call disp('H'//tostring(k)//' = ', H)
+#ifdef _DEBUG
+        call disp('H'//tostring(k, fmt='I3.3'), H, style='pad')
+        call disp()
 #endif
 
         k = k + 1
 
         if (k >= itermax) then
+          call diagnostics(k, itermax)
           exit
         endif
 
@@ -55,9 +55,15 @@ module eigenvalues
           H = eig_shifted_double_step_unrolled(H)
         else if (mk == 2) then
           L(1:2) = eig_trivial(H)
+#ifdef _DEBUG
+          call diagnostics(k, itermax)
+#endif
           exit
         else if (mk == 1) then
           L(1:1) = eig_trivial(H)
+#ifdef _DEBUG
+          call diagnostics(k, itermax)
+#endif
           exit
         endif
 
@@ -305,6 +311,7 @@ module eigenvalues
       urow = reshape(u, [1, size(u)])
       ucol = reshape(u, [size(u), 1])
 
+      ! transpose(P) * H * P
       X => H(start:end, offset:)
       X = X - matmul(2 * ucol, matmul(urow, X))
       X => H(offset:, start:end)
@@ -335,5 +342,12 @@ module eigenvalues
       eye = 0.0d0
       forall (i=1:n) eye(i,i) = 1.0d0
     end function
+
+    subroutine diagnostics(k, itermax)
+      integer, intent(in) :: k, itermax
+      call disp('k = ', k, advance = 'no')
+      call disp('itermax = ', itermax, advance = 'yes')
+      call disp()
+    end subroutine
 
 end module
