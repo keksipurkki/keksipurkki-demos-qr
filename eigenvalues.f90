@@ -59,22 +59,22 @@ module eigenvalues
           exit
         endif
 
-        sub => subdiagonal(H)
+        !sub => subdiagonal(H)
 
-        forall (i=1: mk - 1)
-          a(i) = abs(H(i,i)) + abs(H(i + 1, i + 1))
-        end forall
+        !forall (i=1: mk - 1)
+        !  a(i) = abs(H(i,i)) + abs(H(i + 1, i + 1))
+        !end forall
 
-        !call disp('sub = ', sub)
+        !!call disp('sub = ', sub)
 
-        ! Adopted from LAPACK
-        ! Zero out subdiagonal elements for which H_i+1,i < eps*(|H_i,i|+|H_i+1,i+1|)
-        where (a == abs(sub) + a) sub = 0.0d0
+        !! Adopted from LAPACK
+        !! Zero out subdiagonal elements for which H_i+1,i < eps*(|H_i,i|+|H_i+1,i+1|)
+        !where (a == abs(sub) + a) sub = 0.0d0
 
-        if (count(sub == 0) > 0) then
-          call disp('size = ', size(sub))
-          call disp('zeros = ', count(sub == 0))
-        endif
+        !if (count(sub == 0) > 0) then
+        !  call disp('size = ', size(sub))
+        !  call disp('zeros = ', count(sub == 0))
+        !endif
 
         ! Deflate
 
@@ -82,7 +82,7 @@ module eigenvalues
         S => H(:3, :3)
         deflation = eig_deflation(S)
         if (deflation > 0) then
-          S => S(:deflation,:deflation)
+          S => S(:deflation, :deflation)
           L(mk - deflation + 1: mk) = eig_trivial(S)
           H = H(deflation + 1:, deflation + 1:)
           cycle
@@ -92,6 +92,7 @@ module eigenvalues
         S => H(mk - 2:, mk - 2:)
         deflation = eig_deflation(S)
         if (deflation > 0) then
+          deflation = 3 - deflation ! Reverse
           S => S(3 - deflation + 1:, 3 - deflation + 1:)
           L(mk - deflation + 1: mk) = eig_trivial(S)
           H = H(:mk - deflation, :mk - deflation)
@@ -140,17 +141,6 @@ module eigenvalues
 
       ! Not in Schur form
       n = 0
-
-      !if (abs(S(2,1)) < 1e-11) then
-      !  ! First subdiagonal element
-      !  n = 1
-      !else if (abs(S(3,2)) < 1e-11) then
-      !  ! Second subdiagonal element
-      !  n = 2
-      !else
-      !  ! Not converged
-      !  n = 0
-      !endif
 
     end function
 
@@ -205,7 +195,7 @@ module eigenvalues
       real(real64), intent(in), target :: H(:,:)
       real(real64), allocatable :: Hk(:,:), u(:), P(:,:), Hshifted(:)
       real(real64), allocatable :: urow(:,:), ucol(:,:)
-      real(real64), allocatable :: S(:,:)
+      real(real64) :: S(2,2)
       real(real64) :: trace, determinant
       integer :: m, n, k, r
 
@@ -213,6 +203,8 @@ module eigenvalues
       n = size(H, 2)
 
       Hk = H
+
+      if (m < 3) return
 
       ! Pick shifts from the eigenvalues of the trailing 2x2 block
       ! If the shifts are close to actual eigenvalues, the trailing subdiagonal
@@ -223,9 +215,9 @@ module eigenvalues
 
       ! The first column of Hshifted = (H - λ_1*I)(H - λ_2*I)
       ! The arithmetic here does away with complications with complex
-      ! arithmetic in which case λ_1 == conj(λ_2).
+      ! arithmetic (λ_1 == conj(λ_2)).
       allocate(Hshifted(m), source=0.0d0)
-      Hshifted(1) = H(1,1)*H(1,1) + H(1,2) * H(2,1) - trace * H(1,1) + determinant
+      Hshifted(1) = H(1,1) * H(1,1) + H(1,2) * H(2,1) - trace * H(1,1) + determinant
       Hshifted(2) = H(2,1) * (H(1,1) + H(2,2) - trace)
       Hshifted(3) = H(2,1) * H(3,2)
 
