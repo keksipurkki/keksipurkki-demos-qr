@@ -1,6 +1,6 @@
-OBJS := main.o eigenvalues.o dispmodule.o
+OBJS := main.o eigenvalues.o dispmodule.o utils.o
 PROG := qr
-FLAGS := -march=native -mtune=native -O3
+FLAGS := -march=native -mtune=native -O1
 COMPILER := gfortran $(FLAGS)
 
 all: $(PROG)
@@ -16,7 +16,7 @@ $(PROG): $(OBJS)
 $(OBJS): %.o: %.f90
 	$(COMPILER) -c -o $@ $<
 
-main.o: dispmodule.o eigenvalues.o
+main.o: dispmodule.o eigenvalues.o utils.o
 
 eigenvalues.o: dispmodule.o
 

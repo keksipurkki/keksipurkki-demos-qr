@@ -19,7 +19,8 @@ module eigenvalues
       m = size(X, 1)
       n = size(X, 2)
       k = 0
-      if (.not.present(itermax)) itermax = 1000
+
+      if (.not.present(itermax)) itermax = 30*m*n
 
       if (m /= n) then
         call disp('Expected a square matrix')
@@ -59,25 +60,6 @@ module eigenvalues
           exit
         endif
 
-        !sub => subdiagonal(H)
-
-        !forall (i=1: mk - 1)
-        !  a(i) = abs(H(i,i)) + abs(H(i + 1, i + 1))
-        !end forall
-
-        !!call disp('sub = ', sub)
-
-        !! Adopted from LAPACK
-        !! Zero out subdiagonal elements for which H_i+1,i < eps*(|H_i,i|+|H_i+1,i+1|)
-        !where (a == abs(sub) + a) sub = 0.0d0
-
-        !if (count(sub == 0) > 0) then
-        !  call disp('size = ', size(sub))
-        !  call disp('zeros = ', count(sub == 0))
-        !endif
-
-        ! Deflate
-
         ! Deflation (leading block)
         S => H(:3, :3)
         deflation = eig_deflation(S)
@@ -102,13 +84,6 @@ module eigenvalues
       enddo
 
     end subroutine
-
-    function subdiagonal(H) result(s)
-      real(real64), intent(in), contiguous, target :: H(:,:)
-      real(real64), pointer :: tmp(:), s(:)
-      tmp(1:size(H)) => H
-      s => tmp(2::size(H,1) + 1)
-    end function
 
     ! Given a 3x3 block extracted along the diagonal of an upper Hessenberg
     ! matrix, the function inspects its input for block diagonality, i.e.
@@ -146,7 +121,7 @@ module eigenvalues
 
     pure function eig_trivial(X) result(L)
       real(real64), intent(in) :: X(:,:)
-      complex(real64), allocatable :: L(:)
+      real(real64), allocatable :: L(:)
       integer :: n
       n = size(X, 1)
       if (n == 1) then
@@ -158,7 +133,7 @@ module eigenvalues
 
     pure function eig_2(X) result(L)
       real(real64), intent(in) :: X(2,2)
-      complex(real64) :: L(2)
+      real(real64) :: L(2)
       real(real64) :: m, p, discriminant
 
       m = (X(1,1) + X(2,2)) / 2
@@ -170,7 +145,7 @@ module eigenvalues
 
     pure function eig_1(X) result(L)
       real(real64), intent(in) :: X(1,1)
-      complex(real64) :: L(1)
+      real(real64) :: L(1)
       L(1) = X(1,1)
     end function
 
@@ -291,6 +266,5 @@ module eigenvalues
       eye = 0.0d0
       forall (i=1:n) eye(i,i) = 1.0d0
     end function
-
 
 end module
