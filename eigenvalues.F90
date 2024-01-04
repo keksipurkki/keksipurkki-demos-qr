@@ -53,7 +53,7 @@ module eigenvalues
         endif
 
         if (mk >= 3) then
-          H = eig_shifted_double_step(H)
+          H = eig_shifted_double_step_unrolled(H)
         else if (mk == 2) then
           L(1:2) = eig_trivial(H)
           exit
@@ -101,7 +101,7 @@ module eigenvalues
       d = abs(S(1,1)) + abs(S(2,2))
       if (d == 0.0d0) d = 1e-11
 
-      ! First subdiagonal element S(2,1) < eps*(|S_11|+|S_22|)
+      ! First subdiagonal element S_21 < eps*(|S_11|+|S_22|)
       if (d == abs(S(2,1)) + d) then
         n = 1
         return
@@ -110,7 +110,7 @@ module eigenvalues
       d = abs(S(2,2)) + abs(S(3,3))
       if (d == 0.0d0) d = 1e-11
 
-      ! Second subdiagonal element S(3,2) < eps*(|S_22|+|S_33|)
+      ! Second subdiagonal element S_32 < eps*(|S_22|+|S_33|)
       if (d == abs(S(3,2)) + d) then
         n = 2
         return
@@ -167,6 +167,10 @@ module eigenvalues
       u = u / norm2(u)
 
     end function
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!  Slow version with explicit transformation matrices
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     pure function eig_shifted_double_step(H) result(Hk)
       real(real64), intent(in), target :: H(:,:)
@@ -237,8 +241,10 @@ module eigenvalues
     end function
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!  Optimized version
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-    function eig_shifted_double_step_unrolled(H) result(Hk)
+    pure function eig_shifted_double_step_unrolled(H) result(Hk)
       real(real64), intent(in), target :: H(:,:)
       real(real64), allocatable :: u(:), Hshifted(:)
       real(real64), allocatable, target :: Hk(:,:)
@@ -275,44 +281,23 @@ module eigenvalues
       urow = reshape(u, [1, size(u)])
       ucol = reshape(u, [size(u), 1])
 
-      call disp('P = ', eye(3) - 2*matmul(ucol, urow))
-
       ! Apply shifts
       X => Hk(:3,:)
       X = X - matmul(2 * ucol, matmul(urow, X))
       X => Hk(:,:3)
       X = X - matmul(matmul(X, 2 * ucol), urow)
 
-      call disp('Bulged = ', Hk)
-
       ! Restore upper Hessenberg structure by "bulge chasing"
       do k = 1, m - 2
-        block_size = min(k + 3, m) - k
-        u = eig_bulge_chaser_unrolled(Hk, k, block_size=block_size)
+        block_size = min(m - k, 3)
+        u = eig_reflector(Hk(k + 1:k + block_size, k), dim=1)
         urow = reshape(u, [1, size(u)])
         ucol = reshape(u, [size(u), 1])
-        X => Hk(k:k + block_size, :)
+        X => Hk(k + 1:k + block_size, k:)
         X = X - matmul(2 * ucol, matmul(urow, X))
-        X => Hk(:,k:k + block_size)
+        X => Hk(k:, k + 1:k + block_size)
         X = X - matmul(matmul(X, 2 * ucol), urow)
       enddo
-
-    end function
-
-
-    pure function eig_bulge_chaser_unrolled(H, k, block_size) result(u)
-      real(real64), intent(in), target :: H(:,:)
-      integer, intent(in) :: k, block_size
-      integer :: m
-
-      real(real64) :: Pk(block_size, block_size)
-      real(real64), allocatable :: u(:)
-      real(real64), allocatable :: urow(:,:), ucol(:,:)
-
-      u = eig_reflector(H(k + 1:k + block_size, k), dim=1)
-      !urow = reshape(u, [1, size(u)])
-      !ucol = reshape(u, [size(u), 1])
-      !Pk = eye(block_size) - matmul(2 * ucol, urow)
     end function
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

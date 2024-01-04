@@ -24,7 +24,7 @@ program main
   contains
 
     function data_matrix()
-      real(real64) :: data_matrix(5, 5)
+      real(real64) :: data_matrix(100, 100)
       integer :: i
       data_matrix = -2.0d0
 

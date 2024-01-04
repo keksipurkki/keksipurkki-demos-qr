@@ -5,6 +5,7 @@ COMPILER := gfortran $(FLAGS)
 
 all: $(PROG)
 	@./$(PROG)
+	./lambda.py
 
 test: .PHONY
 	$(COMPILER) -c scratch.F90
