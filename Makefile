@@ -2,7 +2,7 @@ DEBUG :=
 SIZE := 10
 OBJS := main.o eigenvalues.o dispmodule.o utils.o
 PROG := qr
-FLAGS := -march=native -fbounds-check -O1
+FLAGS := -march=native -ffree-form -fimplicit-none -fbounds-check -O1
 COMPILER := gfortran
 
 ifdef DEBUG
@@ -17,14 +17,14 @@ input.nml:
 	cat default_input.nml > input.nml
 
 test: .PHONY
-	$(COMPILER) $(FLAGS) -c scratch.F90
+	$(COMPILER) $(FLAGS) -c scratch.F
 	$(COMPILER) $(FLAGS) scratch.o dispmodule.o -o test
 	./test
 
 $(PROG): $(OBJS)
 	$(COMPILER) $(FLAGS) -o $@ $^
 
-$(OBJS): %.o: %.F90
+$(OBJS): %.o: %.F
 	$(COMPILER) $(FLAGS) -c -o $@ $<
 
 main.o: dispmodule.o eigenvalues.o utils.o
