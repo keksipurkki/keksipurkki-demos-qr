@@ -1,23 +1,31 @@
+DEBUG :=
 SIZE := 10
 OBJS := main.o eigenvalues.o dispmodule.o utils.o
 PROG := qr
-FLAGS := -march=native -fbounds-check -O1 -D_DEBUG -D_SIZE=$(SIZE)
-COMPILER := gfortran $(FLAGS)
+FLAGS := -march=native -fbounds-check -O1
+COMPILER := gfortran
 
-all: $(PROG)
+ifdef DEBUG
+	FLAGS += -D_DEBUG
+endif
+
+all: $(PROG) input.nml
 	@./$(PROG)
 	./lambda.py
 
+input.nml:
+	cat default_input.nml > input.nml
+
 test: .PHONY
-	$(COMPILER) -c scratch.F90
-	$(COMPILER) scratch.o dispmodule.o -o test
+	$(COMPILER) $(FLAGS) -c scratch.F90
+	$(COMPILER) $(FLAGS) scratch.o dispmodule.o -o test
 	./test
 
 $(PROG): $(OBJS)
-	$(COMPILER) -o $@ $^
+	$(COMPILER) $(FLAGS) -o $@ $^
 
 $(OBJS): %.o: %.F90
-	$(COMPILER) -c -o $@ $<
+	$(COMPILER) $(FLAGS) -c -o $@ $<
 
 main.o: dispmodule.o eigenvalues.o utils.o
 

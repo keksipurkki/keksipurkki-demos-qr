@@ -17,6 +17,7 @@ module eigenvalues
       m = size(X, 1)
       n = size(X, 2)
       k = 0
+      mk = m
 
       if (.not.present(itermax)) itermax = 30 * m * n
 
@@ -38,7 +39,12 @@ module eigenvalues
 
       do
 
+        if (size(H,1) /= mk .or. k == 0) then
+          call diagnostics(k, itermax, shape(H))
+        endif
+
         mk = size(H, 1)
+
 #ifdef _DEBUG
         call disp('H'//tostring(k, fmt='I3.3'), H, style='pad')
         call disp()
@@ -47,7 +53,7 @@ module eigenvalues
         k = k + 1
 
         if (k >= itermax) then
-          call diagnostics(k, itermax)
+          call diagnostics(k, itermax, shape(H))
           exit
         endif
 
@@ -55,15 +61,9 @@ module eigenvalues
           H = eig_shifted_double_step_unrolled(H)
         else if (mk == 2) then
           L(1:2) = eig_trivial(H)
-#ifdef _DEBUG
-          call diagnostics(k, itermax)
-#endif
           exit
         else if (mk == 1) then
           L(1:1) = eig_trivial(H)
-#ifdef _DEBUG
-          call diagnostics(k, itermax)
-#endif
           exit
         endif
 
@@ -173,80 +173,6 @@ module eigenvalues
 
     end function
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !!  Slow version with explicit transformation matrices
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-    pure function eig_shifted_double_step(H) result(Hk)
-      real(real64), intent(in), target :: H(:,:)
-      real(real64), allocatable :: Hk(:,:), u(:), P(:,:), Hshifted(:)
-      real(real64), allocatable :: urow(:,:), ucol(:,:)
-      real(real64) :: S(2,2)
-      real(real64) :: trace, determinant
-      integer :: m, n, k, r
-
-      m = size(H, 1)
-      n = size(H, 2)
-
-      Hk = H
-
-      if (m < 3) return
-
-      ! Pick shifts from the eigenvalues of the trailing 2x2 block
-      ! If the shifts are close to actual eigenvalues, the trailing subdiagonal
-      ! elements can be shown to converge to zero
-      S = H(m - 1:, n - 1:)
-      trace = S(1,1) + S(2,2)
-      determinant = S(1,1) * S(2,2) - S(1,2) * S(2,1)
-
-      ! The first column of Hshifted = (H - λ_1*I)(H - λ_2*I)
-      ! The arithmetic here does away with complications with complex
-      ! arithmetic (λ_1 == conj(λ_2)).
-      allocate(Hshifted(m), source=0.0d0)
-      Hshifted(1) = H(1,1) * H(1,1) + H(1,2) * H(2,1) - trace * H(1,1) + determinant
-      Hshifted(2) = H(2,1) * (H(1,1) + H(2,2) - trace)
-      Hshifted(3) = H(2,1) * H(3,2)
-
-      ! Householder reflection matrix
-      u = eig_reflector(Hshifted, dim=1)
-      urow = reshape(u, [1, size(u)])
-      ucol = reshape(u, [size(u), 1])
-
-      ! Apply shifts
-      P = eye(m) - matmul(2 * ucol, urow)
-      Hk = matmul(matmul(P, H), P)
-
-      ! Restore upper Hessenberg structure by "bulge chasing"
-      do k = 1, m - 2
-        r = min(k + 3, m)
-        P = eig_bulge_chaser(Hk, k, block_size=r - k)
-        Hk = matmul(matmul(P, Hk), P)
-      enddo
-
-    end function
-
-    ! A matrix that transforms column k of H into upper Hessenberg form
-    pure function eig_bulge_chaser(H, k, block_size) result(P)
-      real(real64), intent(in), target :: H(:,:)
-      integer, intent(in) :: k, block_size
-
-      real(real64) :: PP(block_size, block_size), P(size(H, 1), size(H, 2))
-      real(real64), allocatable :: u(:)
-      real(real64), allocatable :: urow(:,:), ucol(:,:)
-
-      u = eig_reflector(H(k + 1:k + block_size, k), dim=1)
-      urow = reshape(u, [1, size(u)])
-      ucol = reshape(u, [size(u), 1])
-      PP = eye(block_size) - matmul(2 * ucol, urow)
-
-      P = eye(size(H, 1))
-      P(k + 1: k + 1 + block_size, k + 1: k + 1 + block_size) = PP
-
-    end function
-
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !!  Optimized version
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     pure function eig_shifted_double_step_unrolled(H) result(Hk)
       real(real64), intent(in) :: H(:,:)
@@ -343,11 +269,13 @@ module eigenvalues
       forall (i=1:n) eye(i,i) = 1.0d0
     end function
 
-    subroutine diagnostics(k, itermax)
-      integer, intent(in) :: k, itermax
-      call disp('k = ', k, advance = 'no')
-      call disp('itermax = ', itermax, advance = 'yes')
-      call disp()
+    subroutine diagnostics(k, itermax, s)
+      integer, intent(in) :: k, itermax, s(2)
+      integer :: width
+      width = nint(log10(1.0d0*itermax))
+      call disp('k = ', k, advance = 'no', fmt='I'//tostring(width)//'.'//tostring(width))
+      call disp('itermax = ', itermax, advance = 'no')
+      call disp('shape = ', s, orient='row', advance='yes')
     end subroutine
 
 end module

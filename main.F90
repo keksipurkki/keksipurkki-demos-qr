@@ -1,4 +1,3 @@
-
 program main
   use display
   use utils
@@ -8,15 +7,12 @@ program main
 
   real(real64), allocatable :: X(:,:)
   real(real64), allocatable :: Q(:,:), L(:)
-  integer :: n
+  integer :: n = 10
 
-#ifdef _SIZE
-  n = _SIZE
-#else
-  n = 100
-#endif
+  call read_input('input.nml', n)
 
   X = data_matrix(n)
+  call disp('shape(X)', shape(X), orient='row', style='pad')
 
   call disp()
   call eig(X, Q, L)
@@ -41,6 +37,25 @@ program main
       enddo
 
     end function
+
+    subroutine read_input(fname, n)
+      character(len=*), intent(in) :: fname
+      integer, intent(out) :: n
+      integer :: io, rc
+      namelist /config/ n
+
+      inquire (file=fname, iostat=rc)
+
+      if (rc /= 0) then
+        write(error_unit, '("Error: input file ", a, " does not exist")') fname
+        return
+      end if
+
+      open(action='read', file=fname, iostat=rc, newunit=io)
+      read (nml=config, iostat=rc, unit=io)
+      if (rc /= 0) write (error_unit, '("Error: invalid Namelist format")')
+      close (io)
+    end subroutine
 
     subroutine output_eigenvalues(fname, L, digmax)
       character(len=*), intent(in) :: fname
