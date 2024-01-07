@@ -92,33 +92,34 @@ contains
 
   end subroutine
 
-  ! Given a 3x3 block extracted along the diagonal of an upper Hessenberg
-  ! matrix, the function inspects its input for block diagonality, i.e.
-  ! whether it is in Schur form.
+  ! Given a 3x3 block whose diagonal elements coincide with the diagonal of
+  ! an upper Hessenberg matrix, the function inspects its input for block diagonality.
   !
-  ! The size of the biggest block is returned
+  ! The size `n` of the biggest block is returned. If n > 0, an n x n block can be
+  ! deflated from the Hessenberg matrix.
   !
+  ! The converge criterion involving two adjacent diagonal element is a heuristic
+  ! proposed by Wilkinson. The subdiagonal elements `S_i,i+1` will be considered to
+  ! equal zero if `abs(S_i,i+1) < eps*(abs(S_i,i) + abs(S_i+1,i+1)) <= eps*norm(S)`.
+  !
+  ! Reference: Ahues & Tisseur (LAWN 122, 230: 1997)
   pure function eig_deflation(S, tol) result(n)
     real(real64), intent(in) :: S(3, 3)
     real(real64), optional, value :: tol
     real(real64) :: d
     integer :: n
 
-    if (.not.present(tol)) tol = 1e-14
+    if (.not. present(tol)) tol = 1e-14
 
-    d = abs(S(1, 1)) + abs(S(2, 2))
-    if (d == 0.0d0) d = tol
+    d = max(abs(S(1, 1)) + abs(S(2, 2)), tol)
 
-    ! First subdiagonal element S_21 < eps*(|S_11|+|S_22|)
     if (d == abs(S(2, 1)) + d) then
       n = 1
       return
     end if
 
-    d = abs(S(2, 2)) + abs(S(3, 3))
-    if (d == 0.0d0) d = tol
+    d = max(abs(S(2, 2)) + abs(S(3, 3)), tol)
 
-    ! Second subdiagonal element S_32 < eps*(|S_22|+|S_33|)
     if (d == abs(S(3, 2)) + d) then
       n = 2
       return

@@ -3,7 +3,7 @@ SIZE := 10
 OBJS := main.o eigenvalues.o dispmodule.o utils.o
 PROG := qr
 LIBS := -framework Accelerate
-FLAGS := -march=native -ffree-form -fimplicit-none -fbounds-check -O1
+FLAGS := -fexternal-blas -march=native -ffree-form -fimplicit-none -fbounds-check -O1
 COMPILER := gfortran
 
 ifdef DEBUG

@@ -1,7 +1,10 @@
+include 'assertions.F'
+
 program main
   use display
   use utils
   use eigenvalues
+  use assertions
   use iso_fortran_env
   implicit none
 
@@ -18,18 +21,15 @@ program main
   call eig(X, Q, L)
   L = sorted(L)
 
-  call disp('Λ', L, digmax=15, style='pad')
-  call disp()
+  call disp('Λ', L, digmax=15, style='pad', advance='no')
+  LL = sorted(reference_values(data_matrix(n), n))
+  call disp('Λref', LL, digmax=15, style='pad', advance='no')
+  call disp('Abs. error', abs(L - LL), style='pad', fmt='ES15.3')
 
   call output('lambda.txt', L, 15)
   call output('data.txt', reshape(X, [size(X)]), 15)
 
-  ! Verification
-  LL = sorted(reference_values(data_matrix(n), n))
-  call disp('Λref', LL, digmax=15, style='pad')
-  call disp()
-
-  call disp('Error', abs(L - LL), style='pad')
+  call assert(maxval(abs(L - LL)) < 1e-6, 'Maximum absolute error threshold exceeded')
 
 contains
 
@@ -44,7 +44,7 @@ contains
       data_matrix(i, i) = i
     end do
 
-    data_matrix(2,1) = 1.0d0
+    !data_matrix(2,1) = 1.0d0
 
   end function
 
@@ -58,9 +58,8 @@ contains
     Limag = 0.0d0
     Z => null()
     call dlahqr(.false., .false., n, 1, n, eig_hessenberg(X), n, L, Limag, 1, n, Z, 1, info)
-    !call disp(L)
-    !call disp(Limag)
-    !call disp('info = ', info)
+    call assert(info == 0, 'dlahqr failed')
+    call assert(all(Limag == 0), 'complex-valued eigenvalues detected')
   end function
 
   subroutine read_input(fname, n)
