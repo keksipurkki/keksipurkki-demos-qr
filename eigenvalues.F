@@ -12,13 +12,10 @@ contains
 
     real(real64), allocatable, target :: H(:, :)
     integer :: m, n, k, i
-
-    real(real64), pointer :: sub(:), diag(:)
-    real(real64), allocatable :: thrsd(:), adjacent(:,:)
+    real(real64), allocatable :: sub(:)
 
     m = size(X, 1)
     n = size(X, 2)
-    k = 0
 
     if (.not. present(itermax)) itermax = 30 * m * n
 
@@ -38,59 +35,79 @@ contains
 
     H = X
 
-    do
+!#ifdef _DEBUG
+!    call disp('H'//tostring(k, fmt='I3.3'), H, style='pad')
+!    call disp()
+!#endif
 
-#ifdef _DEBUG
-      call disp('H'//tostring(k, fmt='I3.3'), H, style='pad')
-      call disp()
-#endif
+    if (m == 2) then
+      L = eig_trivial(H)
+      return
+    end if
 
-      k = k + 1
+    if (m == 1) then
+      L = eig_trivial(H)
+      return
+    end if
 
-      if (k >= itermax) then
-        call diagnostics(k, itermax, shape(H))
-        exit
-      end if
+    sub = eig_truncated_subdiagonal(H)
 
-      if (m >= 3) then
-
-        ! Set negligible subdiagonal elements to zero
-        !
-        ! The converge criterion involving two adjacent diagonal element is a heuristic
-        ! proposed by Wilkinson. The subdiagonal elements `S_i,i+1` will be considered to
-        ! equal zero if `abs(S_i,i+1) < eps*(abs(S_i,i) + abs(S_i+1,i+1)) <= eps*norm(S)`.
-        !
-        ! Reference: Ahues & Tisseur (LAWN 122, 230: 1997)
-        diag => diagonal(H)
-        sub => diagonal(H, 1)
-        adjacent = reshape([diag(2:), diag(1:)], [2, size(sub)], order=[2, 1])
-        thrsd = sum(abs(adjacent), 1)
-
-        where (thrsd == thrsd + abs(sub)) sub = 0.0d0
-
-        ! Subdivide the problem at the first zero subdiagonal entry
-        do i = 1, size(sub)
-          if (sub(i) == 0.0d0) then
-            call disp('Split at i = ', i)
-            L(:i) = eig(H(:i, :i))
-            L(i + 1:) = eig(H(i + 1:, i + 1:))
-            return
-          end if
-        end do
-
-      else if (m == 2) then
-        L = eig_trivial(H)
-        return
-      else if (m == 1) then
-        L = eig_trivial(H)
+    ! Subdivide the problem at the subdiagonal entries
+    do i = size(sub), 1, -1
+      if (sub(i) == 0.0d0) then
+        L(:i) = eig(H(:i, :i))
+        L(i + 1:) = eig(H(i + 1:, i + 1:))
         return
       end if
-
-      H = eig_shifted_double_step(H)
-
     end do
 
+    ! Perform QR steps until the problem splits
+    do k = 1, itermax
+      H = eig_shifted_double_step(H)
+      sub = eig_truncated_subdiagonal(H)
+      if (any(sub == 0.0d0)) then
+#ifdef _DEBUG
+        call diagnostics(k, itermax, shape(H))
+#endif
+        exit
+      end if
+    end do
+
+    if (k >= itermax) then
+      call diagnostics(k, itermax, shape(H))
+      return
+    end if
+
+    L = eig(H)
+
   end
+
+  ! Subdiagonal of `H` with negligible entries set to zero
+  !
+  ! The converge criterion involving two adjacent diagonal element is a heuristic
+  ! proposed by Wilkinson. The subdiagonal elements `S_i,i+1` will be considered to
+  ! equal zero if `abs(S_i,i+1) < eps*(abs(S_i,i) + abs(S_i+1,i+1)) <= eps*norm(S)`.
+  !
+  ! Reference: Ahues & Tisseur (LAWN 122, 230: 1997)
+  function eig_truncated_subdiagonal(H)
+    real(real64), intent(in), contiguous, target :: H(:, :)
+    real(real64), pointer :: sub(:), diag(:)
+    real(real64), allocatable :: thrsd(:), adjacent(:, :)
+    real(real64), allocatable :: eig_truncated_subdiagonal(:)
+
+    diag => diagonal(H)
+    sub => diagonal(H, 1)
+    adjacent = reshape([diag(2:), diag(1:)], [2, size(sub)], order=[2, 1])
+    thrsd = sum(abs(adjacent), 1)
+
+    allocate (eig_truncated_subdiagonal(size(sub)))
+
+    where (thrsd == thrsd + abs(sub))
+      eig_truncated_subdiagonal = 0.0d0
+    elsewhere
+      eig_truncated_subdiagonal = sub
+    end where
+  end function
 
   function diagonal(H, offset) result(s)
     real(real64), intent(in), contiguous, target :: H(:, :)
@@ -217,8 +234,6 @@ contains
     X => H(offset:, start:end)
     X = X - matmul(matmul(X, 2 * ucol), urow)
   end
-
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Given an nxn matrix A, the function returns the upper Hessenberg form of A
   function eig_hessenberg(A) result(H)
