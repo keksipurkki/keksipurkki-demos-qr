@@ -2,6 +2,7 @@ DEBUG :=
 SIZE := 10
 OBJS := main.o eigenvalues.o dispmodule.o utils.o
 PROG := qr
+LIBS := -framework Accelerate
 FLAGS := -march=native -ffree-form -fimplicit-none -fbounds-check -O1
 COMPILER := gfortran
 
@@ -11,7 +12,6 @@ endif
 
 all: $(PROG) input.nml
 	@./$(PROG)
-	./lambda.py
 
 input.nml:
 	cat default_input.nml > input.nml
@@ -22,7 +22,7 @@ test: .PHONY
 	./test
 
 $(PROG): $(OBJS)
-	$(COMPILER) $(FLAGS) -o $@ $^
+	$(COMPILER) $(LIBS) $(FLAGS) -o $@ $^
 
 $(OBJS): %.o: %.F
 	$(COMPILER) $(FLAGS) -c -o $@ $<

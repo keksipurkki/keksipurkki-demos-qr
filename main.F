@@ -6,7 +6,7 @@ program main
   implicit none
 
   real(real64), allocatable :: X(:, :)
-  real(real64), allocatable :: Q(:, :), L(:)
+  real(real64), allocatable :: Q(:, :), L(:), LL(:)
   integer :: n = 10
 
   call read_input('input.nml', n)
@@ -21,7 +21,15 @@ program main
   call disp('Λ', L, digmax=15, style='pad')
   call disp()
 
-  call output_eigenvalues('lambda.txt', L, 15)
+  call output('lambda.txt', L, 15)
+  call output('data.txt', reshape(X, [size(X)]), 15)
+
+  ! Verification
+  LL = sorted(reference_values(data_matrix(n), n))
+  call disp('Λref', LL, digmax=15, style='pad')
+  call disp()
+
+  call disp('Error', abs(L - LL), style='pad')
 
 contains
 
@@ -36,6 +44,23 @@ contains
       data_matrix(i, i) = i
     end do
 
+    data_matrix(2,1) = 1.0d0
+
+  end function
+
+  function reference_values(X, n) result(L)
+    real(real64), intent(in) :: X(:,:)
+    integer, intent(in) :: n
+    real(real64) :: L(n), Limag(n)
+    real(real64), pointer :: Z(:)
+    integer :: info
+    L = 0.0d0
+    Limag = 0.0d0
+    Z => null()
+    call dlahqr(.false., .false., n, 1, n, eig_hessenberg(X), n, L, Limag, 1, n, Z, 1, info)
+    !call disp(L)
+    !call disp(Limag)
+    !call disp('info = ', info)
   end function
 
   subroutine read_input(fname, n)
@@ -57,14 +82,14 @@ contains
     close (io)
   end subroutine
 
-  subroutine output_eigenvalues(fname, L, digmax)
+  subroutine output(fname, V, digmax)
     character(len=*), intent(in) :: fname
-    real(real64), intent(in) :: L(:)
+    real(real64), intent(in) :: V(:)
     integer, intent(in) :: digmax
     integer :: io
 
     open (newunit=io, file=fname, status='replace', action='write', encoding='utf-8')
-    call disp(L, unit=io, digmax=digmax)
+    call disp(V, unit=io, digmax=digmax)
     close (io)
 
   end subroutine

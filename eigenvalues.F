@@ -98,13 +98,16 @@ contains
   !
   ! The size of the biggest block is returned
   !
-  pure function eig_deflation(S) result(n)
+  pure function eig_deflation(S, tol) result(n)
     real(real64), intent(in) :: S(3, 3)
+    real(real64), optional, value :: tol
     real(real64) :: d
     integer :: n
 
+    if (.not.present(tol)) tol = 1e-14
+
     d = abs(S(1, 1)) + abs(S(2, 2))
-    if (d == 0.0d0) d = 1e-11
+    if (d == 0.0d0) d = tol
 
     ! First subdiagonal element S_21 < eps*(|S_11|+|S_22|)
     if (d == abs(S(2, 1)) + d) then
@@ -113,7 +116,7 @@ contains
     end if
 
     d = abs(S(2, 2)) + abs(S(3, 3))
-    if (d == 0.0d0) d = 1e-11
+    if (d == 0.0d0) d = tol
 
     ! Second subdiagonal element S_32 < eps*(|S_22|+|S_33|)
     if (d == abs(S(3, 2)) + d) then
