@@ -5,21 +5,26 @@ module eigenvalues
 
 contains
 
-  subroutine eig(X, Q, L, itermax)
+  recursive function eig(X, itermax) result(L)
     real(real64), intent(in) :: X(:, :)
     integer, value, optional :: itermax
-    real(real64), intent(out), allocatable :: Q(:, :)
-    real(real64), intent(out), allocatable :: L(:)
+    real(real64), allocatable :: L(:)
+
     real(real64), allocatable, target :: H(:, :)
-    real(real64), pointer :: S(:, :)
-    integer :: m, mk, n, k, deflation
+    integer :: m, n, k, i
+
+    real(real64), pointer :: sub(:), diag(:)
+    real(real64), allocatable :: thrsd(:), adjacent(:,:)
 
     m = size(X, 1)
     n = size(X, 2)
     k = 0
-    mk = m
 
     if (.not. present(itermax)) itermax = 30 * m * n
+
+    if (.not. allocated(L)) then
+      allocate (L(m), source=0.0d0)
+    end if
 
     if (m /= n) then
       call disp('Expected a square matrix')
@@ -31,19 +36,9 @@ contains
       return
     end if
 
-    allocate (Q(m, m), source=0.0d0)
-    allocate (L(m), source=0.0d0)
-
-    ! X ~ H, Hessenberg reduction
-    H = eig_hessenberg(X)
+    H = X
 
     do
-
-      if (size(H, 1) /= mk .or. k == 0) then
-        call diagnostics(k, itermax, shape(H))
-      end if
-
-      mk = size(H, 1)
 
 #ifdef _DEBUG
       call disp('H'//tostring(k, fmt='I3.3'), H, style='pad')
@@ -57,77 +52,53 @@ contains
         exit
       end if
 
-      if (mk >= 3) then
-        H = eig_shifted_double_step_unrolled(H)
-      else if (mk == 2) then
-        L(1:2) = eig_trivial(H)
-        exit
-      else if (mk == 1) then
-        L(1:1) = eig_trivial(H)
-        exit
+      if (m >= 3) then
+
+        ! Set negligible subdiagonal elements to zero
+        !
+        ! The converge criterion involving two adjacent diagonal element is a heuristic
+        ! proposed by Wilkinson. The subdiagonal elements `S_i,i+1` will be considered to
+        ! equal zero if `abs(S_i,i+1) < eps*(abs(S_i,i) + abs(S_i+1,i+1)) <= eps*norm(S)`.
+        !
+        ! Reference: Ahues & Tisseur (LAWN 122, 230: 1997)
+        diag => diagonal(H)
+        sub => diagonal(H, 1)
+        adjacent = reshape([diag(2:), diag(1:)], [2, size(sub)], order=[2, 1])
+        thrsd = sum(abs(adjacent), 1)
+
+        where (thrsd == thrsd + abs(sub)) sub = 0.0d0
+
+        ! Subdivide the problem at the first zero subdiagonal entry
+        do i = 1, size(sub)
+          if (sub(i) == 0.0d0) then
+            call disp('Split at i = ', i)
+            L(:i) = eig(H(:i, :i))
+            L(i + 1:) = eig(H(i + 1:, i + 1:))
+            return
+          end if
+        end do
+
+      else if (m == 2) then
+        L = eig_trivial(H)
+        return
+      else if (m == 1) then
+        L = eig_trivial(H)
+        return
       end if
 
-      ! Deflation (leading block)
-      S => H(:3, :3)
-      deflation = eig_deflation(S)
-      if (deflation > 0) then
-        S => S(:deflation, :deflation)
-        L(mk - deflation + 1:mk) = eig_trivial(S)
-        H = H(deflation + 1:, deflation + 1:)
-        cycle
-      end if
-
-      ! Deflation (trailing block)
-      S => H(mk - 2:, mk - 2:)
-      deflation = eig_deflation(S)
-      if (deflation > 0) then
-        deflation = 3 - deflation ! Reverse
-        S => S(3 - deflation + 1:, 3 - deflation + 1:)
-        L(mk - deflation + 1:mk) = eig_trivial(S)
-        H = H(:mk - deflation, :mk - deflation)
-        cycle
-      end if
+      H = eig_shifted_double_step(H)
 
     end do
 
-  end subroutine
+  end
 
-  ! Given a 3x3 block whose diagonal elements coincide with the diagonal of
-  ! an upper Hessenberg matrix, the function inspects its input for block diagonality.
-  !
-  ! The size `n` of the biggest block is returned. If n > 0, an n x n block can be
-  ! deflated from the Hessenberg matrix.
-  !
-  ! The converge criterion involving two adjacent diagonal element is a heuristic
-  ! proposed by Wilkinson. The subdiagonal elements `S_i,i+1` will be considered to
-  ! equal zero if `abs(S_i,i+1) < eps*(abs(S_i,i) + abs(S_i+1,i+1)) <= eps*norm(S)`.
-  !
-  ! Reference: Ahues & Tisseur (LAWN 122, 230: 1997)
-  pure function eig_deflation(S, tol) result(n)
-    real(real64), intent(in) :: S(3, 3)
-    real(real64), optional, value :: tol
-    real(real64) :: d
-    integer :: n
-
-    if (.not. present(tol)) tol = 1e-14
-
-    d = max(abs(S(1, 1)) + abs(S(2, 2)), tol)
-
-    if (d == abs(S(2, 1)) + d) then
-      n = 1
-      return
-    end if
-
-    d = max(abs(S(2, 2)) + abs(S(3, 3)), tol)
-
-    if (d == abs(S(3, 2)) + d) then
-      n = 2
-      return
-    end if
-
-    ! Not in Schur form
-    n = 0
-
+  function diagonal(H, offset) result(s)
+    real(real64), intent(in), contiguous, target :: H(:, :)
+    integer, value, optional :: offset
+    real(real64), pointer :: tmp(:), s(:)
+    tmp(1:size(H)) => H
+    if (.not. present(offset)) offset = 0
+    s => tmp(1 + offset :: size(H, 1) + 1)
   end function
 
   pure function eig_trivial(X) result(L)
@@ -177,7 +148,7 @@ contains
 
   end function
 
-  pure function eig_shifted_double_step_unrolled(H) result(Hk)
+  pure function eig_shifted_double_step(H) result(Hk)
     real(real64), intent(in) :: H(:, :)
     real(real64), allocatable, target :: Hk(:, :)
     integer, parameter :: block_size = 3, shift_size = 2
@@ -270,6 +241,12 @@ contains
     real(real64) :: eye(n, n)
     eye = 0.0d0
     forall (i=1:n) eye(i, i) = 1.0d0
+  end function
+
+  pure function zeros(n)
+    integer, intent(in) :: n
+    real(real64) :: zeros(n)
+    zeros = 0.0d0
   end function
 
   subroutine diagnostics(k, itermax, s)

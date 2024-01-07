@@ -9,7 +9,7 @@ program main
   implicit none
 
   real(real64), allocatable :: X(:, :)
-  real(real64), allocatable :: Q(:, :), L(:), LL(:)
+  real(real64), allocatable :: L(:), LL(:)
   integer :: n = 10
 
   call read_input('input.nml', n)
@@ -18,7 +18,7 @@ program main
   call disp('shape(X)', shape(X), orient='row', style='pad')
 
   call disp()
-  call eig(X, Q, L)
+  L = eig(eig_hessenberg(X))
   L = sorted(L)
 
   call disp('Λ', L, digmax=15, style='pad', advance='no')
