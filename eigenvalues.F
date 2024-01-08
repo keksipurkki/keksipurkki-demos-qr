@@ -11,9 +11,8 @@ contains
     real(real64), allocatable :: L(:)
 
     real(real64), allocatable, target :: H(:, :)
-    real(real64), pointer :: Hsub(:,:)
+    real(real64), pointer :: Hsub(:,:), sub(:), diag(:)
     integer :: m, n, k, i, j
-    real(real64), allocatable :: sub(:)
     real(real64) :: tol, ulp
 
     m = size(X, 1)
@@ -54,7 +53,11 @@ contains
       return
     end if
 
-    sub = eig_truncated_subdiagonal(H, tol=tol)
+    diag => diagonal(H)
+    sub => diagonal(H, 1)
+
+    ! Side-effect: overwrites subdiagonal of H
+    sub = eig_truncated_subdiagonal(diag, sub, tol=tol)
 
     ! Subdivide the problem at the subdiagonal entries
     do i = size(sub), 1, -1
@@ -66,27 +69,27 @@ contains
     end do
 
     ! Perform QR steps until the problem splits
-    do k = 1, itermax
+    k = 0
+    do while (all(sub /= 0.0d0))
 
-      j = eig_shift_index(H)
-      Hsub => H(j - 1:, j - 1:)
-      Hsub = eig_shifted_double_step(Hsub)
-      sub = eig_truncated_subdiagonal(H, tol=tol)
-
-      if (any(sub == 0.0d0)) then
-
-#ifdef _DEBUG
+      if (k >= itermax) then
+        call disp('Max iterations exceeded')
         call diagnostics(k, itermax, shape(H))
-#endif
-        exit
+        return
       end if
-    end do
 
-    if (k >= itermax) then
-      call disp('Max iterations exceeded')
-      call diagnostics(k, itermax, shape(H))
-      return
-    end if
+      diag => diagonal(H)
+      j = eig_shift_index(H, diag)
+
+      Hsub => H(j:, j:)
+      Hsub = eig_shifted_double_step(Hsub)
+
+      diag => diagonal(H)
+      sub => diagonal(H, 1)
+      sub = eig_truncated_subdiagonal(diag, sub, tol=tol)
+
+      k = k + 1
+    end do
 
     L = eig(H)
 
@@ -118,27 +121,24 @@ contains
     eig_shift_vector(3) = H(2, 1) * H(3, 2)
   end
 
-  function eig_shift_index(H) result(indx)
+  pure function eig_shift_index(H, D) result(indx)
     integer, parameter :: block_size = 3, shift_size = 2
-    real(real64), intent(in) :: H(:, :)
+    real(real64), intent(in) :: H(:, :), D(:)
     real(real64) :: u(block_size), ulp, rhs, lhs, S(shift_size, shift_size)
-    real(real64), pointer :: diag(:)
     integer :: indx, m
 
     ulp = radix(1.0_real64) * epsilon(1.0_real64)
     m = size(H, 1)
-    diag => diagonal(H)
     S = H(m - 1:, m - 1:)
 
     do indx = m - 2, 2, -1
       u = eig_shift_vector(H(indx:, indx:), S)
       lhs = abs(H(indx, indx - 1)) * (abs(u(2)) + abs(u(3)))
-      rhs = abs(u(1)) * sum(abs(diag(indx - 1:indx + 1)))
-      if (lhs < ulp * rhs) then
-        return
-      endif
+      rhs = abs(u(1)) * sum(abs(D(indx - 1:indx + 1)))
+      if (lhs < ulp * rhs) exit
     end do
-    indx = 2
+
+    indx = max(1, indx - 1)
   end
 
   ! Subdiagonal of `H` with negligible entries set to zero
@@ -148,24 +148,21 @@ contains
   ! equal zero if `abs(S_i,i+1) < eps*(abs(S_i,i) + abs(S_i+1,i+1)) <= eps*norm(S)`.
   !
   ! Reference: Ahues & Tisseur (LAWN 122, 230: 1997)
-  function eig_truncated_subdiagonal(H, tol)
-    real(real64), intent(in), contiguous, target :: H(:, :)
+  pure function eig_truncated_subdiagonal(D, S, tol)
+    real(real64), intent(in) :: D(:), S(:)
     real(real64), intent(in) :: tol
-    real(real64), pointer :: sub(:), diag(:)
     real(real64), allocatable :: thrsd(:), adjacent(:, :)
     real(real64), allocatable :: eig_truncated_subdiagonal(:)
 
-    diag => diagonal(H)
-    sub => diagonal(H, 1)
-    adjacent = reshape([diag(2:), diag(1:)], [2, size(sub)], order=[2, 1])
+    adjacent = reshape([D(2:), D(1:)], [2, size(S)], order=[2, 1])
     thrsd = sum(abs(adjacent), 1)
 
-    allocate (eig_truncated_subdiagonal(size(sub)))
+    allocate (eig_truncated_subdiagonal(size(S)))
 
-    where (thrsd == thrsd + abs(sub))
+    where (thrsd == thrsd + abs(S))
       eig_truncated_subdiagonal = 0.0d0
     elsewhere
-      eig_truncated_subdiagonal = sub
+      eig_truncated_subdiagonal = S
     end where
 
     where (abs(eig_truncated_subdiagonal) < tol)
