@@ -13,9 +13,11 @@ contains
     real(real64), allocatable, target :: H(:, :)
     integer :: m, n, k, i, j
     real(real64), allocatable :: sub(:), shifts(:)
+    real(real64) :: tol
 
     m = size(X, 1)
     n = size(X, 2)
+    tol = tiny(1.0_real64) * (m / epsilon(1.0_real64))
 
     if (.not. present(itermax)) itermax = 30 * m * n
 
@@ -50,7 +52,7 @@ contains
       return
     end if
 
-    sub = eig_truncated_subdiagonal(H)
+    sub = eig_truncated_subdiagonal(H, tol=tol)
 
     ! Subdivide the problem at the subdiagonal entries
     do i = size(sub), 1, -1
@@ -66,9 +68,9 @@ contains
 
       shifts = eig_shift_vector(H)
       j = eig_shift_index(H, shifts)
-      H(j:,j:) = eig_shifted_double_step(H(j:,j:), shifts)
+      H(j:,j:) = eig_shifted_double_step(H(j:,j:))
 
-      sub = eig_truncated_subdiagonal(H)
+      sub = eig_truncated_subdiagonal(H, tol=tol)
 
       if (any(sub == 0.0d0)) then
 
@@ -130,8 +132,9 @@ contains
   ! equal zero if `abs(S_i,i+1) < eps*(abs(S_i,i) + abs(S_i+1,i+1)) <= eps*norm(S)`.
   !
   ! Reference: Ahues & Tisseur (LAWN 122, 230: 1997)
-  function eig_truncated_subdiagonal(H)
+  function eig_truncated_subdiagonal(H, tol)
     real(real64), intent(in), contiguous, target :: H(:, :)
+    real(real64), intent(in) :: tol
     real(real64), pointer :: sub(:), diag(:)
     real(real64), allocatable :: thrsd(:), adjacent(:, :)
     real(real64), allocatable :: eig_truncated_subdiagonal(:)
@@ -147,6 +150,10 @@ contains
       eig_truncated_subdiagonal = 0.0d0
     elsewhere
       eig_truncated_subdiagonal = sub
+    end where
+
+    where (abs(eig_truncated_subdiagonal) < tol)
+      eig_truncated_subdiagonal = 0.0d0
     end where
 
   end function
@@ -208,8 +215,8 @@ contains
 
   end function
 
-  pure function eig_shifted_double_step(H, u) result(Hk)
-    real(real64), intent(in) :: H(:, :), u(3)
+  pure function eig_shifted_double_step(H) result(Hk)
+    real(real64), intent(in) :: H(:, :)
     real(real64), allocatable, target :: Hk(:, :)
     integer, parameter :: block_size = 3, shift_size = 2
     integer :: m, n, k, r
@@ -230,7 +237,7 @@ contains
     !      [0,  I]]
     !
     ! where PP = I - 2*u*transpose(u) is a 3x3 Householder reflection matrix
-    call eig_reflect(Hk, u, 1, block_size)
+    call eig_reflect(Hk, eig_shift_vector(H), 1, block_size)
 
     ! Restore upper Hessenberg structure by "bulge chasing"
     do k = 1, m - 2
