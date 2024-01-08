@@ -9,10 +9,12 @@ program main
   implicit none
 
   real(real64), allocatable :: X(:, :)
-  real(real64), allocatable :: L(:), LL(:)
+  real(real64), allocatable :: L(:), LL(:), err(:,:)
   integer :: n = 10
 
   call read_input('input.nml', n)
+
+  allocate(err(2,n), source=0.0d0)
 
   X = data_matrix(n)
   call disp('shape(X)', shape(X), orient='row', style='pad')
@@ -21,15 +23,23 @@ program main
   L = eig(eig_hessenberg(X))
   L = sorted(L)
 
-  call disp('Λ', L, digmax=15, style='pad', advance='no')
   LL = sorted(reference_values(data_matrix(n), n))
+
+  err(1,:) = abs(1.0d0 - L/LL)
+  err(2,:) = abs(L - LL)
+  call disp('Maximum relative error = ', maxval(err(1,:)), digmax=16)
+  call disp('Maximum absolute error = ', maxval(err(2,:)), digmax=16)
+  call disp()
+
+  call disp('Λ', L, digmax=15, style='pad', advance='no')
   call disp('Λref', LL, digmax=15, style='pad', advance='no')
-  call disp('Abs. error', abs(L - LL), style='pad', fmt='ES15.3')
+  call disp('Rel. error', err(1,:), style='pad', fmt='ES15.3', advance='no')
+  call disp('Rel. error', err(2,:), style='pad', fmt='ES15.3')
 
   call output('lambda.txt', L, 15)
   call output('data.txt', reshape(X, [size(X)]), 15)
 
-  call assert(maxval(abs(L - LL)) < 1e-6, 'Maximum absolute error threshold exceeded')
+  call assert(maxval(err) < 1e-6, 'Maximum error threshold exceeded')
 
 contains
 

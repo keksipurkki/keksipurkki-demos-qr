@@ -86,6 +86,8 @@ contains
 
       diag => diagonal(H)
       sub => diagonal(H, 1)
+
+      ! Side-effect: overwrites subdiagonal of H
       sub = eig_truncated_subdiagonal(diag, sub, tol=tol)
 
       k = k + 1
@@ -100,16 +102,12 @@ contains
     real(real64), intent(in) :: H(:, :), S(shift_size, shift_size)
     real(real64) :: eig_shift_vector(block_size)
     real(real64) :: trace, determinant
-    integer :: m, n
-
-    m = size(H, 1)
-    n = size(H, 2)
 
     ! If this is gibberish, read up on "Implicit Q theorem"
 
-    ! Pick shifts from the eigenvalues of the trailing 2x2 block
-    ! If the shifts are close to actual eigenvalues, the two
-    ! trailing subdiagonal elements can be shown to converge to zero
+    ! Pick shifts from the eigenvalues of a 2x2 block
+    ! If the shifts are close to actual eigenvalues, the subdiagonal elements
+    ! can be shown to converge to zero
     trace = S(1, 1) + S(2, 2)
     determinant = S(1, 1) * S(2, 2) - S(1, 2) * S(2, 1)
 
@@ -230,7 +228,7 @@ contains
 
   pure function eig_shifted_double_step(H) result(Hk)
     real(real64), intent(in) :: H(:, :)
-    real(real64), allocatable, target :: Hk(:, :)
+    real(real64), allocatable :: Hk(:, :)
     integer, parameter :: block_size = 3, shift_size = 2
     real(real64) :: S(shift_size, shift_size)
     integer :: m, n, k, r
