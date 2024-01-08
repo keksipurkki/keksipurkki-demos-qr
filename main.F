@@ -34,7 +34,7 @@ program main
   call disp('Λ', L, digmax=15, style='pad', advance='no')
   call disp('Λref', LL, digmax=15, style='pad', advance='no')
   call disp('Rel. error', err(1,:), style='pad', fmt='ES15.3', advance='no')
-  call disp('Rel. error', err(2,:), style='pad', fmt='ES15.3')
+  call disp('Abs. error', err(2,:), style='pad', fmt='ES15.3')
 
   call output('lambda.txt', L, 15)
   call output('data.txt', reshape(X, [size(X)]), 15)

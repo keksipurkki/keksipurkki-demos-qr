@@ -80,6 +80,7 @@ contains
 
       diag => diagonal(H)
       j = eig_shift_index(H, diag)
+      if (j /= 1) print *, j
 
       Hsub => H(j:, j:)
       Hsub = eig_shifted_double_step(Hsub)
@@ -196,11 +197,20 @@ contains
     real(real64) :: L(2)
     real(real64) :: m, p, discriminant
 
-    m = (X(1, 1) + X(2, 2)) / 2
-    p = X(1, 1) * X(2, 2) - X(1, 2) * X(2, 1)
-    discriminant = sqrt(m * m - p)
-    L(1) = m + discriminant
-    L(2) = m - discriminant
+    m = (X(1, 1) + X(2, 2)) / 2.0d0
+    p = (X(1, 1) * X(2, 2) - X(1, 2) * X(2, 1))
+
+    discriminant = sqrt(m*m - p)
+
+    ! https://doi.org/10.1145/103162.103163
+    if (m > 0.0d0) then
+      L(1) = p / (m - discriminant)
+      L(2) = m - discriminant
+    else
+      L(1) = m + discriminant
+      L(2) = p / (m + discriminant)
+    endif
+
   end function
 
   pure function eig_1(X) result(L)
@@ -218,7 +228,7 @@ contains
 
     if (.not. present(dim)) dim = 1
 
-    rho = -1 * sign(1.0d0, x(dim))
+    rho = -1d0 * sign(1.0d0, x(dim))
 
     u = x
     u(dim) = x(dim) - rho * norm2(x)
@@ -277,9 +287,9 @@ contains
 
     ! transpose(P) * H * P
     X => H(start:end, offset:)
-    X = X - matmul(2 * ucol, matmul(urow, X))
+    X = X - matmul(2.0d0 * ucol, matmul(urow, X))
     X => H(offset:, start:end)
-    X = X - matmul(matmul(X, 2 * ucol), urow)
+    X = X - matmul(matmul(X, 2.0d0 * ucol), urow)
   end
 
   ! Given an nxn matrix A, the function returns the upper Hessenberg form of A
