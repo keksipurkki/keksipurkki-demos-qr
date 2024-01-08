@@ -3,15 +3,17 @@ program test
   use display
   implicit none
   real :: a(5,5), block(2,2), v(5)
+  real(real64) :: ulp, tol
   integer :: i
   v = [(1.0d0*i, i = 1, 5)]
-  !a = eye(5)
-  !block = reshape([[5, 0],[0, 5]], [2,2])
-  !a(4:,4:) = block
 
-  call disp(reshape([v(2:), v], [4, 2]))
-  call disp()
-  call disp(reshape([v(2:), v], [2, 4], order=[2, 1]))
+  call disp(radix(0.0_real64))
+
+  ulp = radix(1.0_real64)*epsilon(1.0_real64)
+  tol = tiny(1.0_real64) * (200 / ulp)
+
+  call disp(ulp)
+  call disp(200/ulp)
 
   contains
 

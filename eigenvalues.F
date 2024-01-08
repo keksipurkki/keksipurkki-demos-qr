@@ -11,13 +11,15 @@ contains
     real(real64), allocatable :: L(:)
 
     real(real64), allocatable, target :: H(:, :)
+    real(real64), pointer :: Hsub(:,:)
     integer :: m, n, k, i, j
-    real(real64), allocatable :: sub(:), shifts(:)
-    real(real64) :: tol
+    real(real64), allocatable :: sub(:)
+    real(real64) :: tol, ulp
 
     m = size(X, 1)
     n = size(X, 2)
-    tol = tiny(1.0_real64) * (m / epsilon(1.0_real64))
+    ulp = radix(1.0_real64) * epsilon(1.0_real64)
+    tol = tiny(1.0_real64) * (m / ulp)
 
     if (.not. present(itermax)) itermax = 30 * m * n
 
@@ -37,10 +39,10 @@ contains
 
     H = X
 
-!#ifdef _DEBUG
-!    call disp('H'//tostring(k, fmt='I3.3'), H, style='pad')
-!    call disp()
-!#endif
+#ifdef _DEBUG
+    call disp('H'//tostring(k, fmt='I6.3'), H, style='pad')
+    call disp()
+#endif
 
     if (m == 2) then
       L = eig_trivial(H)
@@ -66,10 +68,9 @@ contains
     ! Perform QR steps until the problem splits
     do k = 1, itermax
 
-      shifts = eig_shift_vector(H)
-      j = eig_shift_index(H, shifts)
-      H(j:,j:) = eig_shifted_double_step(H(j:,j:))
-
+      j = eig_shift_index(H)
+      Hsub => H(j - 1:, j - 1:)
+      Hsub = eig_shifted_double_step(Hsub)
       sub = eig_truncated_subdiagonal(H, tol=tol)
 
       if (any(sub == 0.0d0)) then
@@ -84,16 +85,16 @@ contains
     if (k >= itermax) then
       call disp('Max iterations exceeded')
       call diagnostics(k, itermax, shape(H))
+      return
     end if
 
     L = eig(H)
 
   end
 
-  pure function eig_shift_vector(H)
-    real(real64), intent(in) :: H(:,:)
+  pure function eig_shift_vector(H, S)
     integer, parameter :: block_size = 3, shift_size = 2
-    real(real64) :: S(shift_size, shift_size)
+    real(real64), intent(in) :: H(:, :), S(shift_size, shift_size)
     real(real64) :: eig_shift_vector(block_size)
     real(real64) :: trace, determinant
     integer :: m, n
@@ -106,7 +107,6 @@ contains
     ! Pick shifts from the eigenvalues of the trailing 2x2 block
     ! If the shifts are close to actual eigenvalues, the two
     ! trailing subdiagonal elements can be shown to converge to zero
-    S = H(m - 1:, n - 1:)
     trace = S(1, 1) + S(2, 2)
     determinant = S(1, 1) * S(2, 2) - S(1, 2) * S(2, 1)
 
@@ -118,11 +118,27 @@ contains
     eig_shift_vector(3) = H(2, 1) * H(3, 2)
   end
 
-  pure function eig_shift_index(H, u) result(indx)
+  function eig_shift_index(H) result(indx)
     integer, parameter :: block_size = 3, shift_size = 2
-    real(real64), intent(in) :: H(:,:), u(block_size)
-    integer :: indx
-    indx = 1
+    real(real64), intent(in) :: H(:, :)
+    real(real64) :: u(block_size), ulp, rhs, lhs, S(shift_size, shift_size)
+    real(real64), pointer :: diag(:)
+    integer :: indx, m
+
+    ulp = radix(1.0_real64) * epsilon(1.0_real64)
+    m = size(H, 1)
+    diag => diagonal(H)
+    S = H(m - 1:, m - 1:)
+
+    do indx = m - 2, 2, -1
+      u = eig_shift_vector(H(indx:, indx:), S)
+      lhs = abs(H(indx, indx - 1)) * (abs(u(2)) + abs(u(3)))
+      rhs = abs(u(1)) * sum(abs(diag(indx - 1:indx + 1)))
+      if (lhs < ulp * rhs) then
+        return
+      endif
+    end do
+    indx = 2
   end
 
   ! Subdiagonal of `H` with negligible entries set to zero
@@ -219,6 +235,7 @@ contains
     real(real64), intent(in) :: H(:, :)
     real(real64), allocatable, target :: Hk(:, :)
     integer, parameter :: block_size = 3, shift_size = 2
+    real(real64) :: S(shift_size, shift_size)
     integer :: m, n, k, r
 
     m = size(H, 1)
@@ -237,7 +254,8 @@ contains
     !      [0,  I]]
     !
     ! where PP = I - 2*u*transpose(u) is a 3x3 Householder reflection matrix
-    call eig_reflect(Hk, eig_shift_vector(H), 1, block_size)
+    S = H(m - 1:, n - 1:)
+    call eig_reflect(Hk, eig_shift_vector(H, S), 1, block_size)
 
     ! Restore upper Hessenberg structure by "bulge chasing"
     do k = 1, m - 2
