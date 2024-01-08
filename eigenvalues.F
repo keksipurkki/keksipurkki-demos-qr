@@ -38,11 +38,6 @@ contains
 
     H = X
 
-#ifdef _DEBUG
-    call disp('H'//tostring(k, fmt='I6.3'), H, style='pad')
-    call disp()
-#endif
-
     if (m == 2) then
       L = eig_trivial(H)
       return
@@ -78,21 +73,23 @@ contains
         return
       end if
 
+      ! TODO: Handle these the same as LAPACK
       if (mod(k + 1, 20) == 0) then
-        print *, 'Exceptional shift #1'
-        print *, k + 1
       endif
 
       if (mod(k + 1, 10) == 0) then
-        print *, 'Exceptional shift #2'
-        print *, k + 1
       endif
 
       diag => diagonal(H)
       j = eig_shift_index(H, diag)
-      if (j /= 1) print *, 'WTF', j
 
       Hsub => H(j:, j:)
+
+#ifdef _DEBUG
+      call disp('H'//tostring(k, fmt='I6.3'), Hsub, fmt='ES15.5', style='pad')
+      call disp()
+#endif
+
       Hsub = eig_shifted_double_step(Hsub)
 
       diag => diagonal(H)
@@ -103,6 +100,11 @@ contains
 
       k = k + 1
     end do
+
+#ifdef _DEBUG
+    call disp('After: H'//tostring(k, fmt='I6.3'), Hsub, fmt='ES15.5', style='pad')
+    call disp()
+#endif
 
     L = eig(H)
 
@@ -210,7 +212,7 @@ contains
     real(real64) :: m, p, discriminant
 
     m = (X(1, 1) + X(2, 2)) / 2.0d0
-    p = (X(1, 1) * X(2, 2) - X(1, 2) * X(2, 1))
+    p = X(1, 1) * X(2, 2) - X(1, 2) * X(2, 1)
 
     discriminant = sqrt(m*m - p)
 
@@ -248,11 +250,12 @@ contains
 
   end function
 
-  pure function eig_shifted_double_step(H) result(Hk)
+  function eig_shifted_double_step(H) result(Hk)
     real(real64), intent(in) :: H(:, :)
     real(real64), allocatable :: Hk(:, :)
     integer, parameter :: block_size = 3, shift_size = 2
     real(real64) :: S(shift_size, shift_size)
+    real(real64), pointer :: junk(:)
     integer :: m, n, k, r
 
     m = size(H, 1)
@@ -279,6 +282,13 @@ contains
       r = min(m - k, block_size)
       call eig_reflect(Hk, Hk(k + 1:k + r, k), k + 1, k + r, k)
     end do
+
+    ! Junk
+    do k = 2, m - 1
+      junk => diagonal(Hk, k)
+      junk = 0.0d0
+    enddo
+
   end function
 
   pure subroutine eig_reflect(H, vec, start, end, offset)
