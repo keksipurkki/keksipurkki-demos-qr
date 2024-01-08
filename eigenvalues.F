@@ -78,9 +78,19 @@ contains
         return
       end if
 
+      if (mod(k + 1, 20) == 0) then
+        print *, 'Exceptional shift #1'
+        print *, k + 1
+      endif
+
+      if (mod(k + 1, 10) == 0) then
+        print *, 'Exceptional shift #2'
+        print *, k + 1
+      endif
+
       diag => diagonal(H)
       j = eig_shift_index(H, diag)
-      if (j /= 1) print *, j
+      if (j /= 1) print *, 'WTF', j
 
       Hsub => H(j:, j:)
       Hsub = eig_shifted_double_step(Hsub)
@@ -147,18 +157,20 @@ contains
   ! equal zero if `abs(S_i,i+1) < eps*(abs(S_i,i) + abs(S_i+1,i+1)) <= eps*norm(S)`.
   !
   ! Reference: Ahues & Tisseur (LAWN 122, 230: 1997)
-  pure function eig_truncated_subdiagonal(D, S, tol)
+  function eig_truncated_subdiagonal(D, S, tol)
     real(real64), intent(in) :: D(:), S(:)
     real(real64), intent(in) :: tol
     real(real64), allocatable :: thrsd(:), adjacent(:, :)
     real(real64), allocatable :: eig_truncated_subdiagonal(:)
+    real(real64) :: ulp
 
+    ulp = radix(1.0_real64) * epsilon(1.0_real64)
     adjacent = reshape([D(2:), D(1:)], [2, size(S)], order=[2, 1])
     thrsd = sum(abs(adjacent), 1)
 
     allocate (eig_truncated_subdiagonal(size(S)))
 
-    where (thrsd == thrsd + abs(S))
+    where (abs(S) < ulp*thrsd)
       eig_truncated_subdiagonal = 0.0d0
     elsewhere
       eig_truncated_subdiagonal = S

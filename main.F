@@ -39,7 +39,7 @@ program main
   call output('lambda.txt', L, 15)
   call output('data.txt', reshape(X, [size(X)]), 15)
 
-  call assert(maxval(err) < 1e-6, 'Maximum error threshold exceeded')
+  call assert(maxval(err(1,:)) < 1e-6, 'Maximum error threshold exceeded')
 
 contains
 
