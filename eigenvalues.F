@@ -11,8 +11,8 @@ contains
     real(real64), allocatable :: L(:)
 
     real(real64), allocatable, target :: H(:, :)
-    integer :: m, n, k, i
-    real(real64), allocatable :: sub(:)
+    integer :: m, n, k, i, j
+    real(real64), allocatable :: sub(:), shifts(:)
 
     m = size(X, 1)
     n = size(X, 2)
@@ -63,9 +63,15 @@ contains
 
     ! Perform QR steps until the problem splits
     do k = 1, itermax
-      H = eig_shifted_double_step(H)
+
+      shifts = eig_shift_vector(H)
+      j = eig_shift_index(H, shifts)
+      H(j:,j:) = eig_shifted_double_step(H(j:,j:), shifts)
+
       sub = eig_truncated_subdiagonal(H)
+
       if (any(sub == 0.0d0)) then
+
 #ifdef _DEBUG
         call diagnostics(k, itermax, shape(H))
 #endif
@@ -74,12 +80,47 @@ contains
     end do
 
     if (k >= itermax) then
+      call disp('Max iterations exceeded')
       call diagnostics(k, itermax, shape(H))
-      return
     end if
 
     L = eig(H)
 
+  end
+
+  pure function eig_shift_vector(H)
+    real(real64), intent(in) :: H(:,:)
+    integer, parameter :: block_size = 3, shift_size = 2
+    real(real64) :: S(shift_size, shift_size)
+    real(real64) :: eig_shift_vector(block_size)
+    real(real64) :: trace, determinant
+    integer :: m, n
+
+    m = size(H, 1)
+    n = size(H, 2)
+
+    ! If this is gibberish, read up on "Implicit Q theorem"
+
+    ! Pick shifts from the eigenvalues of the trailing 2x2 block
+    ! If the shifts are close to actual eigenvalues, the two
+    ! trailing subdiagonal elements can be shown to converge to zero
+    S = H(m - 1:, n - 1:)
+    trace = S(1, 1) + S(2, 2)
+    determinant = S(1, 1) * S(2, 2) - S(1, 2) * S(2, 1)
+
+    ! The first three elements of the first column of (H - λ_1*I)(H - λ_2*I)
+    ! The eigenvalues can be complex-valued. However, in the 2x2 case λ_1 == conj(λ_2)
+    ! which allows us to work in real arithmetic as follows:
+    eig_shift_vector(1) = H(1, 1) * H(1, 1) + H(1, 2) * H(2, 1) - trace * H(1, 1) + determinant
+    eig_shift_vector(2) = H(2, 1) * (H(1, 1) + H(2, 2) - trace)
+    eig_shift_vector(3) = H(2, 1) * H(3, 2)
+  end
+
+  pure function eig_shift_index(H, u) result(indx)
+    integer, parameter :: block_size = 3, shift_size = 2
+    real(real64), intent(in) :: H(:,:), u(block_size)
+    integer :: indx
+    indx = 1
   end
 
   ! Subdiagonal of `H` with negligible entries set to zero
@@ -107,6 +148,7 @@ contains
     elsewhere
       eig_truncated_subdiagonal = sub
     end where
+
   end function
 
   function diagonal(H, offset) result(s)
@@ -123,6 +165,7 @@ contains
     real(real64), allocatable :: L(:)
     integer :: n
     n = size(X, 1)
+
     if (n == 1) then
       L = eig_1(X)
     else if (n == 2) then
@@ -165,12 +208,10 @@ contains
 
   end function
 
-  pure function eig_shifted_double_step(H) result(Hk)
-    real(real64), intent(in) :: H(:, :)
+  pure function eig_shifted_double_step(H, u) result(Hk)
+    real(real64), intent(in) :: H(:, :), u(3)
     real(real64), allocatable, target :: Hk(:, :)
     integer, parameter :: block_size = 3, shift_size = 2
-    real(real64) :: S(shift_size, shift_size), Hshifted(block_size)
-    real(real64) :: trace, determinant
     integer :: m, n, k, r
 
     m = size(H, 1)
@@ -178,32 +219,18 @@ contains
 
     Hk = H
 
+    if (m /= n) return
     if (m < block_size) return
 
-    ! If this is gibberish, read up on "Implicit Q theorem"
-
-    ! Pick shifts from the eigenvalues of the trailing 2x2 block
-    ! If the shifts are close to actual eigenvalues, the two
-    ! trailing subdiagonal elements can be shown to converge to zero
-    S = H(m - 1:, n - 1:)
-    trace = S(1, 1) + S(2, 2)
-    determinant = S(1, 1) * S(2, 2) - S(1, 2) * S(2, 1)
-
-    ! The first three elements of the first column of Hshifted = (H - λ_1*I)(H - λ_2*I)
-    ! The eigenvalues can be complex-valued. However, in the 2x2 case λ_1 == conj(λ_2)
-    ! which allows us to work in real arithmetic as follows:
-    Hshifted(1) = H(1, 1) * H(1, 1) + H(1, 2) * H(2, 1) - trace * H(1, 1) + determinant
-    Hshifted(2) = H(2, 1) * (H(1, 1) + H(2, 2) - trace)
-    Hshifted(3) = H(2, 1) * H(3, 2)
-
-    ! Householder reflection
+    ! Apply shifts implicitly via a Householder reflection
+    !
     ! The full refection has the block structure
     !
     ! P = [[PP, 0],
     !      [0,  I]]
     !
-    ! where PP is the 3x3 Householder reflection matrix computed from Hshifted
-    call eig_reflect(Hk, Hshifted, 1, block_size)
+    ! where PP = I - 2*u*transpose(u) is a 3x3 Householder reflection matrix
+    call eig_reflect(Hk, u, 1, block_size)
 
     ! Restore upper Hessenberg structure by "bulge chasing"
     do k = 1, m - 2
@@ -267,7 +294,7 @@ contains
   subroutine diagnostics(k, itermax, s)
     integer, intent(in) :: k, itermax, s(2)
     integer :: width
-    width = nint(log10(1.0d0 * itermax))
+    width = nint(log10(1.0d0 * itermax)) + 1
     call disp('k = ', k, advance='no', fmt='I'//tostring(width)//'.'//tostring(width))
     call disp('itermax = ', itermax, advance='no')
     call disp('shape = ', s, orient='row', advance='yes')
