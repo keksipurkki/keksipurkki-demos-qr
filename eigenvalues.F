@@ -280,12 +280,12 @@ contains
     !
     ! where PP = I - 2*u*transpose(u) is a 3x3 Householder reflection matrix
     S = H(m - 1:, n - 1:)
-    call eig_reflect(Hk, eig_shift_vector(H, S), 1, block_size)
+    call eig_reflect(Hk, eig_shift_vector(H, S), 1, 1)
 
     ! Restore upper Hessenberg structure by "bulge chasing"
     do k = 1, m - 2
       r = min(m - k, block_size)
-      call eig_reflect(Hk, Hk(k + 1:k + r, k), k + 1, k + r, k)
+      call eig_reflect(Hk, Hk(k + 1:k + r, k), k + 1, k)
     end do
 
     ! Junk
@@ -302,22 +302,24 @@ contains
   !      [0, PP, 0],
   !      [0, 0, I]]
   !
-  ! The size of the leading identity matrix I is `offset`
-  ! The size of the Householder reflection `PP` is `end - start`
+  ! The size of the leading identity matrix I is `col - 1`
+  ! The size of the Householder reflection `PP` is `size(vec)`
   ! The trailing identity matrix takes the remaining space
   !
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine eig_reflect(H, vec, start, end, offset)
+  subroutine eig_reflect(H, vec, row, col)
     real(real64), intent(inout), target :: H(:, :)
-    integer, intent(in) :: start, end
-    integer, optional, value :: offset
+    integer, intent(in) :: row, col
     real(real64), intent(in) :: vec(:)
-    real(real64) :: u(size(vec))
 
+    real(real64) :: u(size(vec))
     real(real64), pointer :: X(:, :)
     real(real64), allocatable :: urow(:, :), ucol(:, :)
+    integer :: start, end, offset
 
-    if (.not. present(offset)) offset = 1
+    start = row
+    end = start + size(vec) - 1
+    offset = col
 
     u = eig_reflector(vec, dim=1)
     urow = reshape(u, [1, size(u)])
@@ -342,7 +344,7 @@ contains
     H = A
 
     do k = 1, n - 2 ! P1, P2, P3...Pn-2 Householder reflections
-      call eig_reflect(H, H(k + 1:, k), k + 1, n, k)
+      call eig_reflect(H, H(k + 1:, k), k + 1, k)
     end do
 
     ! Junk
