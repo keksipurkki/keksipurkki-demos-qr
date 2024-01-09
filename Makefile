@@ -20,13 +20,13 @@ scratch: scratch.out .PHONY
 	./$@.out
 
 scratch.out: scratch.o dispmodule.o
-	$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
+	@$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
 
 test: test.out
 	./$@.out
 
 test.out: dispmodule.o eigenvalues.o eigenvalues.test.o
-	$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
+	@$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
 
 $(PROG): $(OBJS)
 	$(COMPILER) $(LIBS) $(FLAGS) -o $@ $^

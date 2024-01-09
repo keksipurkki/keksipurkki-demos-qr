@@ -295,8 +295,19 @@ contains
 
   end function
 
+
+  ! In-place computation of transpose(P)*H*P with respect to the following block structure
+  !
+  ! P = [[I, 0, 0],
+  !      [0, PP, 0],
+  !      [0, 0, I]]
+  !
+  ! The size of the leading identity matrix I is `offset`
+  ! The size of the Householder reflection `PP` is `end - start`
+  ! The trailing identity matrix takes the remaining space
+  !
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine eig_reflect(H, vec, start, end, offset)
-    real(real64), parameter :: t = tiny(1.0_real64)
     real(real64), intent(inout), target :: H(:, :)
     integer, intent(in) :: start, end
     integer, optional, value :: offset
@@ -312,7 +323,6 @@ contains
     urow = reshape(u, [1, size(u)])
     ucol = reshape(u, [size(u), 1])
 
-    ! transpose(P) * H * P
     X => H(start:end, offset:)
     X = X - matmul(2.0d0 * ucol, matmul(urow, X))
 
