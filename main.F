@@ -20,6 +20,7 @@ program main
   call disp('shape(X)', shape(X), orient='row', style='pad')
 
   H = eig_hessenberg(X)
+  call disp('H = ', H, fmt='ES15.5')
 
   call disp()
   L = sorted(real(eig(H), kind=real64))
@@ -54,7 +55,7 @@ contains
       data_matrix(i, i) = i
     end do
 
-    !data_matrix(2,1) = 1.0d0
+    data_matrix(2,1) = 1.0d0
 
   end function
 

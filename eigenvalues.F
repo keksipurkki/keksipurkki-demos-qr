@@ -339,7 +339,7 @@ contains
     ! Junk
     do k = 2, n - 1
       junk => diagonal(H, k)
-      where (abs(junk) < ulp) junk = 0.0d0
+      junk = 0.0d0
     enddo
 
   end function
