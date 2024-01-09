@@ -10,7 +10,20 @@ program main
 
   real(real64), allocatable :: X(:, :), H(:, :)
   real(real64), allocatable :: L(:), LL(:), err(:,:)
+  character(:), allocatable :: fmt
   integer :: n = 10
+
+#ifdef _DEBUG
+  call disp_set(digmax=16)
+#else
+  call disp_set(digmax=5)
+#endif
+
+#ifdef _DEBUG
+  fmt = 'ES16.10'
+#else
+  fmt = 'ES15.3'
+#endif
 
   call read_input('input.nml', n)
 
@@ -20,25 +33,28 @@ program main
   call disp('shape(X)', shape(X), orient='row', style='pad')
 
   H = eig_hessenberg(X)
-  call disp('H = ', H, fmt='ES15.5')
 
-  call disp()
-  L = sorted(real(eig(H), kind=real64))
-  LL = sorted(reference_values(data_matrix(n), n))
+  L = eig(H)
+  LL = eig_ref(data_matrix(n), n)
+
+  L = sorted(L)
+  LL = sorted(LL)
 
   err(1,:) = abs(1.0d0 - L/LL)
   err(2,:) = abs(L - LL)
-  call disp('Maximum relative error = ', maxval(err(1,:)), digmax=16)
-  call disp('Maximum absolute error = ', maxval(err(2,:)), digmax=16)
+
+  call disp()
+  call disp('Maximum relative error = ', maxval(err(1,:)))
+  call disp('Maximum absolute error = ', maxval(err(2,:)))
   call disp()
 
-  call disp('Λ', L, digmax=15, style='pad', advance='no')
-  call disp('Λref', LL, digmax=15, style='pad', advance='no')
-  call disp('Rel. error', err(1,:), style='pad', fmt='ES15.3', advance='no')
-  call disp('Abs. error', err(2,:), style='pad', fmt='ES15.3')
+  call disp('Λ', L, style='pad', advance='no')
+  call disp('Λref', LL, style='pad', advance='no')
+  call disp('Rel. error', err(1,:), fmt=fmt, style='pad', advance='no')
+  call disp('Abs. error', err(2,:), fmt=fmt, style='pad')
 
-  call output('lambda.txt', L, 15)
-  call output('data.txt', reshape(X, [size(X)]), 15)
+  call output('lambda.txt', L, digmax=16)
+  call output('data.txt', reshape(X, [size(X)]), digmax=16)
 
   call assert(maxval(err(1,:)) < 1e-6, 'Maximum error threshold exceeded')
 
@@ -59,7 +75,7 @@ contains
 
   end function
 
-  function reference_values(X, n) result(L)
+  function eig_ref(X, n) result(L)
     real(real64), intent(in) :: X(:,:)
     integer, intent(in) :: n
     real(real64) :: Lreal(n), Limag(n)
@@ -80,6 +96,7 @@ contains
     character(len=*), intent(in) :: fname
     integer, intent(out) :: n
     integer :: io, rc
+
     namelist /config/ n
 
     inquire (file=fname, iostat=rc)

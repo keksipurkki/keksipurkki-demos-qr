@@ -15,15 +15,12 @@ contains
     integer, value, optional :: itermax
     real(real64), allocatable :: L(:)
 
-    real(real64), allocatable, target :: H(:, :)
+    real(real64), allocatable, target :: H(:, :), shifts(:)
     real(real64), pointer :: Hsub(:,:), sub(:), diag(:)
     integer :: m, n, k, i, j
-    real(real64) :: tol, ulp
 
     m = size(X, 1)
     n = size(X, 2)
-    ulp = radix(1.0_real64) * epsilon(1.0_real64)
-    tol = tiny(1.0_real64) * (m / ulp)
 
     if (.not. present(itermax)) itermax = 30 * m * n
 
@@ -57,7 +54,7 @@ contains
     sub => diagonal(H, 1)
 
     ! Side-effect: overwrites subdiagonal of H
-    sub = eig_truncated_subdiagonal(diag, sub, tol=tol)
+    sub = eig_truncated_subdiagonal(diag, sub)
 
     ! Subdivide the problem at the subdiagonal entries
     do i = size(sub), 1, -1
@@ -77,30 +74,26 @@ contains
         return
       end if
 
-      ! TODO: Handle these the same as LAPACK
-      if (mod(k + 1, 20) == 0) then
-      endif
-
-      if (mod(k + 1, 10) == 0) then
-      endif
+      ! TODO: Exceptional shifts as in LAPACK
 
       diag => diagonal(H)
-      j = eig_shift_index(H, diag)
-
+      j = eig_shift_index(H, diag, H(m - 1:, m - 1:))
       Hsub => H(j:, j:)
-      Hsub = eig_shifted_double_step(Hsub)
+
+      shifts = eig_shift_vector(Hsub, Hsub(m - j:, m - j:))
+      Hsub = eig_shifted_double_step(Hsub, shifts)
 
       diag => diagonal(H)
       sub => diagonal(H, 1)
 
       ! Side-effect: overwrites subdiagonal of H
-      sub = eig_truncated_subdiagonal(diag, sub, tol=tol)
+      sub = eig_truncated_subdiagonal(diag, sub)
 
       k = k + 1
     end do
 
 #ifdef _DEBUG
-    call diagnostics('k = ', k, itermax, shape(H))
+    call diagnostics('k =', k, itermax, shape(H))
 #endif
 
     L = eig(H)
@@ -129,15 +122,14 @@ contains
     eig_shift_vector(3) = H(2, 1) * H(3, 2)
   end
 
-  pure function eig_shift_index(H, D) result(indx)
+  pure function eig_shift_index(H, D, S) result(indx)
     integer, parameter :: block_size = 3, shift_size = 2
-    real(real64), intent(in) :: H(:, :), D(:)
-    real(real64) :: u(block_size), ulp, rhs, lhs, S(shift_size, shift_size)
+    real(real64), intent(in) :: H(:, :), D(:), S(shift_size, shift_size)
+    real(real64) :: u(block_size), ulp, rhs, lhs
     integer :: indx, m
 
     ulp = radix(1.0_real64) * epsilon(1.0_real64)
     m = size(H, 1)
-    S = H(m - 1:, m - 1:)
 
     do indx = m - 2, 2, -1
       u = eig_shift_vector(H(indx:, indx:), S)
@@ -156,14 +148,15 @@ contains
   ! equal zero if `abs(S_i,i+1) < eps*(abs(S_i,i) + abs(S_i+1,i+1)) <= eps*norm(S)`.
   !
   ! Reference: Ahues & Tisseur (LAWN 122, 230: 1997)
-  pure function eig_truncated_subdiagonal(D, S, tol)
+  pure function eig_truncated_subdiagonal(D, S)
     real(real64), intent(in) :: D(:), S(:)
-    real(real64), intent(in) :: tol
     real(real64), allocatable :: thrsd(:), adjacent(:, :)
     real(real64), allocatable :: eig_truncated_subdiagonal(:)
-    real(real64) :: ulp
+    real(real64) :: ulp, tol
 
     ulp = radix(1.0_real64) * epsilon(1.0_real64)
+    tol = tiny(1.0_real64) * (size(D) / ulp)
+
     adjacent = reshape([D(2:), D(1:)], [2, size(S)], order=[2, 1])
     thrsd = sum(abs(adjacent), 1)
 
@@ -247,11 +240,10 @@ contains
 
   end function
 
-  function eig_shifted_double_step(H) result(Hk)
-    real(real64), parameter :: ulp = radix(1.0_real64) * epsilon(1.0_real64)
-    real(real64), intent(in) :: H(:, :)
-    real(real64), allocatable :: Hk(:, :)
+  function eig_shifted_double_step(H, shifts) result(Hk)
     integer, parameter :: block_size = 3, shift_size = 2
+    real(real64), intent(in) :: H(:, :), shifts(block_size)
+    real(real64), allocatable :: Hk(:, :)
     real(real64) :: S(shift_size, shift_size)
     real(real64), pointer :: junk(:)
     integer :: m, n, k, r
@@ -272,8 +264,7 @@ contains
     !      [0,  I]]
     !
     ! where PP = I - 2*u*transpose(u) is a 3x3 Householder reflection matrix
-    S = H(m - 1:, n - 1:)
-    call eig_reflect(Hk, eig_shift_vector(H, S), 1, 1)
+    call eig_reflect(Hk, shifts, 1, 1)
 
     ! Restore upper Hessenberg structure by "bulge chasing"
     do k = 1, m - 2
