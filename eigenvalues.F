@@ -289,9 +289,8 @@ contains
     end do
 
     ! Junk
-    do k = 2, m - 1
-      junk => diagonal(Hk, k)
-      where (abs(junk) < ulp) junk = 0.0d0
+    do k = 1, m - 2
+      Hk(k + 2:, k) = 0.0d0
     enddo
 
   end function
@@ -314,11 +313,11 @@ contains
     ucol = reshape(u, [size(u), 1])
 
     ! transpose(P) * H * P
-    X => H(offset:, start:end)
-    X = X - matmul(matmul(X, 2.0d0 * ucol), urow)
-
     X => H(start:end, offset:)
     X = X - matmul(2.0d0 * ucol, matmul(urow, X))
+
+    X => H(:,start:end)
+    X = X - matmul(matmul(X, 2.0d0 * ucol), urow)
   end
 
   ! Given an nxn matrix A, the function returns the upper Hessenberg form of A
@@ -333,13 +332,12 @@ contains
     H = A
 
     do k = 1, n - 2 ! P1, P2, P3...Pn-2 Householder reflections
-      call eig_reflect(H, H(k + 1:, k), k + 1, n)
+      call eig_reflect(H, H(k + 1:, k), k + 1, n, k)
     end do
 
     ! Junk
-    do k = 2, n - 1
-      junk => diagonal(H, k)
-      junk = 0.0d0
+    do k = 1, n - 2
+      H(k + 2:, k) = 0.0d0
     enddo
 
   end function

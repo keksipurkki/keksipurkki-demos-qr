@@ -17,6 +17,7 @@ contains
     real(real64) :: R(3,3)
     logical :: ok
     R = 1.0
+    R(3,3) = 5.0
     ok = is_upper_hessenberg(eig_hessenberg(R))
     call assert(ok, 'Failure at '//__FILE__//':'//tostring(__LINE__))
     call disp('assert_hessenberg_transformation_works: 💚')
@@ -35,7 +36,7 @@ contains
       return
     end if
 
-    do i=2, m - 1
+    do i=2, m - 2
       d => diagonal(H, i)
       if (any(d /= 0.0d0)) then
         is_upper_hessenberg = .false.

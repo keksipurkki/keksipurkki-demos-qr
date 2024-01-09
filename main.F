@@ -24,7 +24,7 @@ program main
 
   call disp()
   L = sorted(real(eig(H), kind=real64))
-  LL = sorted(real(reference_values(data_matrix(n), n), kind=real64))
+  LL = sorted(reference_values(data_matrix(n), n))
 
   err(1,:) = abs(1.0d0 - L/LL)
   err(2,:) = abs(L - LL)
