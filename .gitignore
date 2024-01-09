@@ -2,7 +2,6 @@
 *.mod
 .DS_Store
 qr
-test
-scratch
+*.out
 input.nml
 *.txt

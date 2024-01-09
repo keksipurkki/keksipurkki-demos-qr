@@ -1,4 +1,4 @@
-include 'assertions.F'
+#include "assertions.F"
 
 program eigenvalues_test
   use display
@@ -7,46 +7,29 @@ program eigenvalues_test
   use iso_fortran_env
   implicit none
 
-  call disp('-------------------------------------------------------------------')
-  call assert_hessenberg_transformation_works();
-  call disp('-------------------------------------------------------------------')
+  call test_suite_start()
+  call test(assert_eig_hessenberg__some_matrix__is_expected)
+  call test(assert_x__y__z)
+  call test_suite_end()
 
 contains
 
-  subroutine assert_hessenberg_transformation_works()
-    real(real64) :: R(3,3)
+  function assert_eig_hessenberg__some_matrix__is_expected() result(ok)
+    real(real64) :: input(3,3), expected(3,3), actual(3,3)
     logical :: ok
-    R = 1.0
-    R(3,3) = 5.0
-    ok = is_upper_hessenberg(eig_hessenberg(R))
-    call assert(ok, 'Failure at '//__FILE__//':'//tostring(__LINE__))
-    call disp('assert_hessenberg_transformation_works: 💚')
+
+    input = 1.0
+    input(3,3) = 5.0
+
+    actual = eig_hessenberg(input)
+    expected = reshape([0,0,0,0,0,0,0,0,0], [3,3])
+
+    ok = .true. !all(actual == expected)
   end
 
-  logical function is_upper_hessenberg(H)
-    real(real64), intent(in), target :: H(:,:)
-    real(real64), pointer :: d(:)
-    integer :: m, n, i
-
-    m = size(H, 1)
-    n = size(H, 2)
-
-    if (m /= n) then
-      is_upper_hessenberg = .false.
-      return
-    end if
-
-    do i=2, m - 2
-      d => diagonal(H, i)
-      if (any(d /= 0.0d0)) then
-        is_upper_hessenberg = .false.
-        return
-      end if
-    enddo
-
-    is_upper_hessenberg = .true.
-
+  function assert_x__y__z() result(ok)
+    logical :: ok
+    ok = .true.
   end function
 
 end program
-

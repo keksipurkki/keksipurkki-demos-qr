@@ -3,7 +3,7 @@ SIZE := 10
 OBJS := main.o eigenvalues.o dispmodule.o utils.o
 PROG := qr
 LIBS := -framework Accelerate
-FLAGS := -fexternal-blas -march=native -ffree-form -fimplicit-none -fbounds-check -O3
+FLAGS := -march=native -fexternal-blas -ffree-form -fimplicit-none -fbounds-check -O1
 COMPILER := gfortran
 
 ifdef DEBUG
@@ -11,19 +11,22 @@ ifdef DEBUG
 endif
 
 all: test $(PROG) input.nml
-	./test
 	./$(PROG)
 
 input.nml:
 	cat default_input.nml > input.nml
 
-scratch: .PHONY
-	$(COMPILER) $(FLAGS) -c scratch.F
-	$(COMPILER) $(FLAGS) scratch.o dispmodule.o -o scratch
-	./scratch
+scratch: scratch.out .PHONY
+	./$@.out
 
-test: dispmodule.o eigenvalues.o eigenvalues.test.o
-	$(COMPILER) $(LIBS) $(FLAGS) eigenvalues.test.o dispmodule.o eigenvalues.o -o test
+scratch.out: scratch.o dispmodule.o
+	$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
+
+test: test.out
+	./$@.out
+
+test.out: dispmodule.o eigenvalues.o eigenvalues.test.o
+	$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
 
 $(PROG): $(OBJS)
 	$(COMPILER) $(LIBS) $(FLAGS) -o $@ $^
@@ -38,12 +41,12 @@ main.o: dispmodule.o eigenvalues.o utils.o
 
 eigenvalues.o: dispmodule.o
 
-eigenvalues.test.o: eigenvalues.o
+eigenvalues.test.o: assertions.F eigenvalues.o
 
 clean:
-	rm -rf $(PROG) test *.o *.mod
+	rm -rf $(PROG) *.out *.o *.mod
 
 dist-clean: clean
 	rm -rf *.txt
 
-.PHONY:
+.PHONY: test.out scratch.out

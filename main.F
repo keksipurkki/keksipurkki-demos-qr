@@ -1,4 +1,4 @@
-include 'assertions.F'
+#include "assertions.F"
 
 program main
   use display
