@@ -221,7 +221,7 @@ contains
     discriminant = sqrt(m*m - p)
 
     ! https://doi.org/10.1145/103162.103163
-    if (m > 0.0d0) then
+    if (m < 0.0d0) then
       L(1) = p / (m - discriminant)
       L(2) = m - discriminant
     else

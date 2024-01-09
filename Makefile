@@ -41,7 +41,7 @@ main.o: dispmodule.o eigenvalues.o utils.o
 
 eigenvalues.o: dispmodule.o
 
-eigenvalues.test.o: assertions.F eigenvalues.o
+eigenvalues.test.o: eigenvalues.o
 
 clean:
 	rm -rf $(PROG) *.out *.o *.mod
