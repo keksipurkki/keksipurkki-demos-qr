@@ -10,6 +10,7 @@ module eigenvalues
 contains
 
   recursive function eig(X, itermax) result(L)
+    real(real64), parameter :: zero = 0.0_real64
     real(real64), intent(in) :: X(:, :)
     integer, value, optional :: itermax
     real(real64), allocatable :: L(:)
@@ -27,7 +28,7 @@ contains
     if (.not. present(itermax)) itermax = 30 * m * n
 
     if (.not. allocated(L)) then
-      allocate (L(m), source=0.0d0)
+      allocate (L(m), source=zero)
     end if
 
     if (m /= n) then
@@ -60,7 +61,7 @@ contains
 
     ! Subdivide the problem at the subdiagonal entries
     do i = size(sub), 1, -1
-      if (sub(i) == 0.0d0) then
+      if (sub(i) == zero) then
         L(:i) = eig(H(:i, :i))
         L(i + 1:) = eig(H(i + 1:, i + 1:))
         return
@@ -69,11 +70,10 @@ contains
 
     ! Perform QR steps until the problem splits
     k = 0
-    do while (all(sub /= 0.0d0))
+    do while (all(sub /= zero))
 
       if (k >= itermax) then
-        call disp('Max iterations exceeded')
-        call diagnostics(k, itermax, shape(H))
+        call diagnostics('Max iterations exceeded. k = ', k, itermax, shape(H))
         return
       end if
 
@@ -88,12 +88,6 @@ contains
       j = eig_shift_index(H, diag)
 
       Hsub => H(j:, j:)
-
-#ifdef _DEBUG
-      call disp('H'//tostring(k, fmt='I6.3'), Hsub, fmt='ES15.5', style='pad')
-      call disp()
-#endif
-
       Hsub = eig_shifted_double_step(Hsub)
 
       diag => diagonal(H)
@@ -106,8 +100,7 @@ contains
     end do
 
 #ifdef _DEBUG
-    call disp('After: H'//tostring(k, fmt='I6.3'), Hsub, fmt='ES15.5', style='pad')
-    call disp()
+    call diagnostics('k = ', k, itermax, shape(H))
 #endif
 
     L = eig(H)
@@ -163,7 +156,7 @@ contains
   ! equal zero if `abs(S_i,i+1) < eps*(abs(S_i,i) + abs(S_i+1,i+1)) <= eps*norm(S)`.
   !
   ! Reference: Ahues & Tisseur (LAWN 122, 230: 1997)
-  function eig_truncated_subdiagonal(D, S, tol)
+  pure function eig_truncated_subdiagonal(D, S, tol)
     real(real64), intent(in) :: D(:), S(:)
     real(real64), intent(in) :: tol
     real(real64), allocatable :: thrsd(:), adjacent(:, :)
@@ -368,11 +361,13 @@ contains
     zeros = 0.0d0
   end function
 
-  subroutine diagnostics(k, itermax, s)
+  subroutine diagnostics(message, k, itermax, s)
+    character(*), intent(in) :: message
     integer, intent(in) :: k, itermax, s(2)
     integer :: width
     width = nint(log10(1.0d0 * itermax)) + 1
-    call disp('k = ', k, advance='no', fmt='I'//tostring(width)//'.'//tostring(width))
+    call disp(message, advance='no')
+    call disp(k, advance='no', fmt='I'//tostring(width)//'.'//tostring(width))
     call disp('itermax = ', itermax, advance='no')
     call disp('shape = ', s, orient='row', advance='yes')
   end subroutine
