@@ -3,5 +3,6 @@
 .DS_Store
 qr
 test
+scratch
 input.nml
 *.txt

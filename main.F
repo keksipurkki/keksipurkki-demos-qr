@@ -8,7 +8,7 @@ program main
   use iso_fortran_env
   implicit none
 
-  real(real64), allocatable :: X(:, :)
+  real(real64), allocatable :: X(:, :), H(:, :)
   real(real64), allocatable :: L(:), LL(:), err(:,:)
   integer :: n = 10
 
@@ -19,11 +19,11 @@ program main
   X = data_matrix(n)
   call disp('shape(X)', shape(X), orient='row', style='pad')
 
-  call disp()
-  L = eig(eig_hessenberg(X))
-  L = sorted(L)
+  H = eig_hessenberg(X)
 
-  LL = sorted(reference_values(data_matrix(n), n))
+  call disp()
+  L = sorted(real(eig(H), kind=real64))
+  LL = sorted(real(reference_values(data_matrix(n), n), kind=real64))
 
   err(1,:) = abs(1.0d0 - L/LL)
   err(2,:) = abs(L - LL)
@@ -61,15 +61,18 @@ contains
   function reference_values(X, n) result(L)
     real(real64), intent(in) :: X(:,:)
     integer, intent(in) :: n
-    real(real64) :: L(n), Limag(n)
+    real(real64) :: Lreal(n), Limag(n)
+    real(real64) :: L(n)
     real(real64), pointer :: Z(:)
     integer :: info
-    L = 0.0d0
+
+    Lreal = 0.0d0
     Limag = 0.0d0
     Z => null()
-    call dlahqr(.false., .false., n, 1, n, eig_hessenberg(X), n, L, Limag, 1, n, Z, 1, info)
+    call dlahqr(.false., .false., n, 1, n, eig_hessenberg(X), n, Lreal, Limag, 1, n, Z, 1, info)
     call assert(info == 0, 'dlahqr failed')
     call assert(all(Limag == 0), 'complex-valued eigenvalues detected')
+    L = Lreal
   end function
 
   subroutine read_input(fname, n)
@@ -100,7 +103,6 @@ contains
     open (newunit=io, file=fname, status='replace', action='write', encoding='utf-8')
     call disp(V, unit=io, digmax=digmax)
     close (io)
-
   end subroutine
 
 end program

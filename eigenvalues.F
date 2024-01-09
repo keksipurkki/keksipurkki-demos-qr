@@ -3,6 +3,10 @@ module eigenvalues
   use display
   implicit none
 
+  private
+  public :: eig, eig_hessenberg
+  public :: diagonal
+
 contains
 
   recursive function eig(X, itermax) result(L)
@@ -251,6 +255,7 @@ contains
   end function
 
   function eig_shifted_double_step(H) result(Hk)
+    real(real64), parameter :: ulp = radix(1.0_real64) * epsilon(1.0_real64)
     real(real64), intent(in) :: H(:, :)
     real(real64), allocatable :: Hk(:, :)
     integer, parameter :: block_size = 3, shift_size = 2
@@ -286,12 +291,13 @@ contains
     ! Junk
     do k = 2, m - 1
       junk => diagonal(Hk, k)
-      junk = 0.0d0
+      where (abs(junk) < ulp) junk = 0.0d0
     enddo
 
   end function
 
-  pure subroutine eig_reflect(H, vec, start, end, offset)
+  subroutine eig_reflect(H, vec, start, end, offset)
+    real(real64), parameter :: t = tiny(1.0_real64)
     real(real64), intent(inout), target :: H(:, :)
     integer, intent(in) :: start, end
     integer, optional, value :: offset
@@ -308,24 +314,33 @@ contains
     ucol = reshape(u, [size(u), 1])
 
     ! transpose(P) * H * P
-    X => H(start:end, offset:)
-    X = X - matmul(2.0d0 * ucol, matmul(urow, X))
     X => H(offset:, start:end)
     X = X - matmul(matmul(X, 2.0d0 * ucol), urow)
+
+    X => H(start:end, offset:)
+    X = X - matmul(2.0d0 * ucol, matmul(urow, X))
   end
 
   ! Given an nxn matrix A, the function returns the upper Hessenberg form of A
   function eig_hessenberg(A) result(H)
+    real(real64), parameter :: ulp = radix(1.0_real64) * epsilon(1.0_real64)
     real(real64), intent(in) :: A(:, :)
     real(real64), allocatable, target :: H(:, :)
-    integer :: j, n
+    real(real64), pointer :: junk(:)
+    integer :: k, n
 
     n = size(A, 1)
     H = A
 
-    do j = 1, n - 2 ! P1, P2, P3...Pn-2 Householder reflections
-      call eig_reflect(H, H(j + 1:, j), j + 1, n)
+    do k = 1, n - 2 ! P1, P2, P3...Pn-2 Householder reflections
+      call eig_reflect(H, H(k + 1:, k), k + 1, n)
     end do
+
+    ! Junk
+    do k = 2, n - 1
+      junk => diagonal(H, k)
+      where (abs(junk) < ulp) junk = 0.0d0
+    enddo
 
   end function
 

@@ -13,7 +13,6 @@ program test
   tol = tiny(1.0_real64) * (200 / ulp)
 
   call disp(ulp)
-  call disp(200/ulp)
 
   contains
 

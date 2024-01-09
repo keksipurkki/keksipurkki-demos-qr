@@ -10,15 +10,20 @@ ifdef DEBUG
 	FLAGS += -D_DEBUG
 endif
 
-all: $(PROG) input.nml
+all: test $(PROG) input.nml
 	@./$(PROG)
 
 input.nml:
 	cat default_input.nml > input.nml
 
-test: .PHONY
+scratch: .PHONY
 	$(COMPILER) $(FLAGS) -c scratch.F
-	$(COMPILER) $(FLAGS) scratch.o dispmodule.o -o test
+	$(COMPILER) $(FLAGS) scratch.o dispmodule.o -o scratch
+	./scratch
+
+test: .PHONY dispmodule.o eigenvalues.o
+	$(COMPILER) $(FLAGS) -c eigenvalues.test.F
+	$(COMPILER) $(LIBS) $(FLAGS) eigenvalues.test.o dispmodule.o eigenvalues.o -o test
 	./test
 
 $(PROG): $(OBJS)

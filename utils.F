@@ -15,13 +15,6 @@ module utils
 
 contains
 
-  function subdiagonal(H) result(s)
-    real(real64), intent(in), contiguous, target :: H(:, :)
-    real(real64), pointer :: tmp(:), s(:)
-    tmp(1:size(H)) => H
-    s => tmp(2 :: size(H, 1) + 1)
-  end function
-
   pure function sorted(X) result(Y)
     real(real64), intent(in) :: X(:)
     real(real64), target :: Y(size(X))
