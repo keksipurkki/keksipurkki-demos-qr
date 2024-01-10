@@ -9,6 +9,7 @@ module assertions
   private
   public :: test_suite_start___, test_suite___, test_suite_end___
   public :: assert___
+  public :: all_pass
 
   abstract interface
     logical function assertion()
@@ -21,7 +22,9 @@ module assertions
   end type
 
   integer :: num_tests = 0
+  character(:), allocatable :: test_output
   type(test_case), allocatable :: test_cases(:)
+  logical :: all_pass = .true.
 
 contains
 
@@ -29,12 +32,13 @@ contains
     character(*), intent(in) :: fname, message
     integer, intent(in) :: linenr
     logical, intent(in) :: ok
+    character(66) :: err_msg
 
     if (ok) then
       return
     else
-      write(error_unit, '(*(G0,:,":"))') fname, linenr, message
-      error stop
+      write(err_msg, '(*(G0,:,":"))') fname, linenr, message
+      error stop err_msg
     end if
   end subroutine
 
@@ -68,7 +72,7 @@ contains
 
   subroutine test_suite_end___(heading)
     integer :: i
-    logical :: ok = .false., all_ok = .true.
+    logical :: ok = .false.
     type(test_case) :: it
     character(:), allocatable :: emoji
 
@@ -85,14 +89,14 @@ contains
         emoji = "❌"
       endif
 
-      if (.not.ok) all_ok = .false.
+      if (.not.ok) all_pass = .false.
 
       write(output_unit, '(A,A,A)') it%name, repeat(" ", max(64 - len(it%name), 1)), emoji
     enddo
 
     write(output_unit, '(66("-"))')
     write(output_unit, '(A, A)') 'End: ', heading
-    call assert(all_ok, 'There were test failures')
+
   end subroutine
 
 end module

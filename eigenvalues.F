@@ -6,7 +6,6 @@ module eigenvalues
 
   private
   public :: eig, eig_hessenberg
-  public :: diagonal
 
 contains
 
@@ -179,15 +178,6 @@ contains
       eig_truncated_subdiagonal = 0.0d0
     end where
 
-  end function
-
-  function diagonal(H, offset) result(s)
-    real(real64), intent(in), contiguous, target :: H(:, :)
-    integer, value, optional :: offset
-    real(real64), pointer :: tmp(:), s(:)
-    tmp(1:size(H)) => H
-    if (.not. present(offset)) offset = 0
-    s => tmp(1 + offset :: size(H, 1) + 1)
   end function
 
   pure function eig_trivial(X) result(L)
