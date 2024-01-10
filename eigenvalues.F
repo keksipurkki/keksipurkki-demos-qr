@@ -1,6 +1,7 @@
 module eigenvalues
   use iso_fortran_env
   use display
+  use utils
   implicit none
 
   private
@@ -55,6 +56,12 @@ contains
 
     ! Side-effect: overwrites subdiagonal of H
     sub = eig_truncated_subdiagonal(diag, sub)
+
+    ! Upper triangular matrix
+    if (all(sub == zero)) then
+      L = diag
+      return
+    endif
 
     ! Subdivide the problem at the subdiagonal entries
     do i = size(sub), 1, -1
@@ -336,20 +343,6 @@ contains
       H(k + 2:, k) = 0.0d0
     enddo
 
-  end function
-
-  pure function eye(n)
-    integer, intent(in) :: n
-    integer :: i
-    real(real64) :: eye(n, n)
-    eye = 0.0d0
-    forall (i=1:n) eye(i, i) = 1.0d0
-  end function
-
-  pure function zeros(n)
-    integer, intent(in) :: n
-    real(real64) :: zeros(n)
-    zeros = 0.0d0
   end function
 
   subroutine diagnostics(message, k, itermax, s)

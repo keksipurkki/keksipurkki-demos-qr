@@ -40,4 +40,18 @@ contains
     end if
   end function
 
+  pure function eye(n)
+    integer, intent(in) :: n
+    integer :: i
+    real(real64) :: eye(n, n)
+    eye = 0.0d0
+    forall (i=1:n) eye(i, i) = 1.0d0
+  end function
+
+  pure function zeros(n)
+    integer, intent(in) :: n
+    real(real64) :: zeros(n)
+    zeros = 0.0d0
+  end function
+
 end module

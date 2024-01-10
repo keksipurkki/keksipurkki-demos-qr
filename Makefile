@@ -1,6 +1,6 @@
 DEBUG :=
 SIZE := 10
-OBJS := main.o eigenvalues.o dispmodule.o utils.o
+OBJS := eigenvalues.o dispmodule.o utils.o
 PROG := qr
 LIBS := -framework Accelerate
 FLAGS := -march=native -fexternal-blas -ffree-form -fimplicit-none -fbounds-check -O1
@@ -25,10 +25,10 @@ scratch.out: scratch.o dispmodule.o
 test: test.out
 	./$@.out
 
-test.out: dispmodule.o eigenvalues.o eigenvalues.test.o
+test.out: $(OBJS) eigenvalues.test.o
 	@$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
 
-$(PROG): $(OBJS)
+$(PROG): main.o $(OBJS)
 	$(COMPILER) $(LIBS) $(FLAGS) -o $@ $^
 
 $(OBJS): %.o: %.F
@@ -37,11 +37,7 @@ $(OBJS): %.o: %.F
 %.o: %.F
 	$(COMPILER) $(FLAGS) -c -o $@ $<
 
-main.o: dispmodule.o eigenvalues.o utils.o
-
-eigenvalues.o: dispmodule.o
-
-eigenvalues.test.o: eigenvalues.o
+eigenvalues.o: dispmodule.o utils.o
 
 clean:
 	rm -rf $(PROG) *.out *.o *.mod

@@ -4,20 +4,22 @@ program eigenvalues_test
   use display
   use assertions
   use eigenvalues
+  use utils
   use iso_fortran_env
   implicit none
 
   call test_suite_start()
-  call test(assert__eig_hessenberg__some_matrix__is_expected)
-  call test(assert__eig_hessenberg__twice__same_up_to_sign)
-  call test(assert__eig__epsilon_perturbation__no_overflow)
-  call test(assert__eig__singular__zero_eigenvalue)
-  call test(assert__eig__repeated__expected)
+  call test(assert_eig_hessenberg_some_matrix_is_expected)
+  call test(assert_eig_hessenberg_twice_same_up_to_sign)
+  call test(assert_eig_epsilon_perturbation_no_overflow)
+  call test(assert_eig_big_identity_matrix_works)
+  call test(assert_eig_singular_zero_eigenvalue)
+  call test(assert_eig_repeated_expected)
   call test_suite_end()
 
 contains
 
-  function assert__eig_hessenberg__some_matrix__is_expected() result(ok)
+  function assert_eig_hessenberg_some_matrix_is_expected() result(ok)
     real(real64) :: input(3,3), expected(3,3), actual(3,3)
     real(real64) :: vec(9)
     logical :: ok
@@ -36,7 +38,7 @@ contains
     ok = all(actual == expected)
   end
 
-  function assert__eig_hessenberg__twice__same_up_to_sign() result(ok)
+  function assert_eig_hessenberg_twice_same_up_to_sign() result(ok)
     real(real64) :: input(3,3), expected(3,3), actual(3,3)
     real(real64) :: vec(9)
     logical :: ok
@@ -49,7 +51,20 @@ contains
     ok = all(abs(actual) == abs(expected))
   end
 
-  function assert__eig__epsilon_perturbation__no_overflow() result(ok)
+  function assert_eig_big_identity_matrix_works() result(ok)
+    integer, parameter :: s = 2000
+    logical :: ok
+    real(real64) :: identity(s,s)
+    real(real64) :: expected(s), actual(s)
+    identity = eye(s)
+
+    expected = 1.0d0
+    actual = eig(identity)
+
+    ok = all(expected == actual)
+  end function
+
+  function assert_eig_epsilon_perturbation_no_overflow() result(ok)
     logical :: ok
     real(real64), parameter :: eps = epsilon(1.0_real64)
     real(real64) :: actual(2), expected(2)
@@ -64,7 +79,7 @@ contains
     ok = all(actual == expected)
   end function
 
-  function assert__eig__singular__zero_eigenvalue() result(ok)
+  function assert_eig_singular_zero_eigenvalue() result(ok)
     logical :: ok
     real(real64), parameter :: eps = epsilon(1.0_real64)
     real(real64) :: actual(2), expected(2)
@@ -80,7 +95,7 @@ contains
     ok = all(actual == expected)
   end function
 
-  function assert__eig__repeated__expected() result(ok)
+  function assert_eig_repeated_expected() result(ok)
     logical :: ok
     real(real64), parameter :: eps = epsilon(1.0_real64)
     real(real64) :: actual(2), expected(2)
