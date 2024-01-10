@@ -1,13 +1,15 @@
-DEBUG :=
+.EXTRA_PREREQS:= $(abspath $(lastword $(MAKEFILE_LIST)))
+
+DEBUG := 1
 SIZE := 10
 OBJS := eigenvalues.o dispmodule.o utils.o
 PROG := qr
 LIBS := -framework Accelerate
-FLAGS := -march=native -fexternal-blas -ffree-form -fimplicit-none -fbounds-check -O1
+FLAGS := -fexternal-blas -ffree-form -fimplicit-none
 COMPILER := gfortran
 
 ifdef DEBUG
-	FLAGS += -D_DEBUG
+	FLAGS += -Wall -D_DEBUG -g -Og -fcheck=all -fbacktrace
 endif
 
 all: test $(PROG) input.nml
@@ -26,7 +28,7 @@ test: test.out
 	./$@.out
 
 test.out: $(OBJS) eigenvalues.test.o
-	@$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
+	$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
 
 $(PROG): main.o $(OBJS)
 	$(COMPILER) $(LIBS) $(FLAGS) -o $@ $^

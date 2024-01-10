@@ -23,7 +23,6 @@ contains
     integer, intent(out) :: info
     integer, intent(in), optional :: itermax
     real(real64), allocatable :: L(:)
-    real(real64), allocatable, target :: H(:, :)
     L = eig_hessenberg(eig_hessenberg_matrix(X), info, itermax)
   end function
 
@@ -35,7 +34,7 @@ contains
     real(real64), allocatable :: L(:)
 
     real(real64), allocatable, target :: shifts(:)
-    real(real64), pointer :: Hsub(:,:), sub(:), diag(:)
+    real(real64), pointer :: Hsub(:,:), S(:,:), sub(:), diag(:)
     integer :: m, n, k, i, j, itermax_m
 
     m = size(H, 1)
@@ -50,16 +49,13 @@ contains
       return
     end if
 
-    if (present(itermax).and.itermax <= 0) then
+    if (.not.present(itermax)) itermax_m = 30 * m * m
+    if (present(itermax)) itermax_m = itermax
+
+    if (itermax_m <= 0) then
       info = EIG_ERR_NO_CONVERGENCE
       return
     end if
-
-    if (present(itermax).and.itermax > 0) then
-      itermax_m = itermax
-    else
-      itermax_m = 30 * m * m
-    endif
 
     if (m == 2) then
       L = eig_trivial(H)
@@ -102,10 +98,12 @@ contains
 
       ! TODO: Exceptional shifts as in LAPACK
       diag => diagonal(H)
-      j = eig_shift_index(H, diag, H(m - 1:, m - 1:))
+      S => H(m - 1:, m - 1:)
+      j = eig_shift_index(H, diag, S)
       Hsub => H(j:, j:)
 
-      shifts = eig_shift_vector(Hsub, Hsub(m - j:, m - j:))
+      S => Hsub(m - j:, m - j:)
+      shifts = eig_shift_vector(Hsub, S)
       Hsub = eig_shifted_double_step(Hsub, shifts)
 
       diag => diagonal(H)
@@ -127,7 +125,8 @@ contains
 
   pure function eig_shift_vector(H, S)
     integer, parameter :: block_size = 3, shift_size = 2
-    real(real64), intent(in) :: H(:, :), S(shift_size, shift_size)
+    real(real64), intent(in) :: H(:, :)
+    real(real64), intent(in) :: S(:,:)
     real(real64) :: eig_shift_vector(block_size)
     real(real64) :: trace, determinant
 
@@ -149,7 +148,8 @@ contains
 
   pure function eig_shift_index(H, D, S) result(indx)
     integer, parameter :: block_size = 3, shift_size = 2
-    real(real64), intent(in) :: H(:, :), D(:), S(shift_size, shift_size)
+    real(real64), intent(in) :: H(:, :), D(:)
+    real(real64), pointer, intent(in) :: S(:, :)
     real(real64) :: u(block_size), ulp, rhs, lhs
     integer :: indx, m
 
@@ -265,8 +265,6 @@ contains
     integer, parameter :: block_size = 3, shift_size = 2
     real(real64), intent(in) :: H(:, :), shifts(block_size)
     real(real64), allocatable :: Hk(:, :)
-    real(real64) :: S(shift_size, shift_size)
-    real(real64), pointer :: junk(:)
     integer :: m, n, k, r
 
     m = size(H, 1)

@@ -51,7 +51,6 @@ contains
 
   function assert_eig_hessenberg_matrix_twice_same_up_to_sign() result(ok)
     real(real64) :: input(3,3), expected(3,3), actual(3,3)
-    real(real64) :: vec(9)
     logical :: ok
 
     call random_number(input)
@@ -65,7 +64,7 @@ contains
   function assert_eig_big_identity_matrix_works() result(ok)
     integer, parameter :: s = 2000
     logical :: ok
-    real(real64) :: identity(s,s)
+    real(real64), allocatable :: identity(:,:)
     real(real64) :: expected(s), actual(s)
     identity = eye(s)
 

@@ -70,7 +70,6 @@ contains
     integer :: i
     logical :: ok = .false., all_ok = .true.
     type(test_case) :: it
-    character(:), allocatable :: emoji
 
     character(*), intent(in) :: heading
 
