@@ -5,11 +5,11 @@ module eigenvalues
   implicit none
 
   private
-  public :: eig, eig_set, eig_hessenberg
 
-  integer, public, parameter :: EIG_ERR_RECTANGULAR_MATRIX = 1
-  integer, public, parameter :: EIG_ERR_BAD_ITERMAX = 2
-  integer, public, parameter :: EIG_ERR_NO_CONVERGENCE = 4
+  public :: eig, eig_hessenberg, eig_hessenberg_matrix, eig_set
+
+  integer, public, parameter :: EIG_ERR_RECTANGULAR_MATRIX = 2**0
+  integer, public, parameter :: EIG_ERR_NO_CONVERGENCE = 2**1
 
 contains
 
@@ -18,21 +18,31 @@ contains
     call disp_set(unit=unit)
   end subroutine
 
-  function eig(X, info, is_hessenberg, itermax) result(L)
+  function eig(X, info, itermax) result(L)
     real(real64), intent(in) :: X(:, :)
     integer, intent(out) :: info
-    logical, value, optional :: is_hessenberg
-    integer, value, optional :: itermax
+    integer, intent(in), optional :: itermax
     real(real64), allocatable :: L(:)
     real(real64), allocatable, target :: H(:, :)
-    integer :: m, n
+    L = eig_hessenberg(eig_hessenberg_matrix(X), info, itermax)
+  end function
 
-    m = size(X, 1)
-    n = size(X, 2)
-    info = 0
+  recursive function eig_hessenberg(H, info, itermax) result(L)
+    real(real64), parameter :: zero = 0.0_real64
+    real(real64), intent(in), contiguous, target :: H(:, :)
+    integer, intent(out) :: info
+    integer, intent(in), optional :: itermax
+    real(real64), allocatable :: L(:)
+
+    real(real64), allocatable, target :: shifts(:)
+    real(real64), pointer :: Hsub(:,:), sub(:), diag(:)
+    integer :: m, n, k, i, j, itermax_m
+
+    m = size(H, 1)
+    n = size(H, 2)
 
     if (.not.allocated(L)) then
-      allocate (L(m), source=0.0d0)
+      allocate (L(m), source=zero)
     endif
 
     if (m /= n) then
@@ -40,44 +50,15 @@ contains
       return
     end if
 
-    if (.not.present(itermax)) itermax = 30 * m * m
-    if (.not.present(is_hessenberg)) is_hessenberg = .false.
-
-    if (itermax <= 0) then
-      info = EIG_ERR_BAD_ITERMAX
+    if (present(itermax).and.itermax <= 0) then
+      info = EIG_ERR_NO_CONVERGENCE
       return
     end if
 
-    if (.not. is_hessenberg) then
-      H = eig_hessenberg(X)
+    if (present(itermax).and.itermax > 0) then
+      itermax_m = itermax
     else
-      H = X
-    endif
-
-    L = eig_(H, itermax)
-
-    if (itermax <= 0) then
-      info = EIG_ERR_NO_CONVERGENCE
-      return
-    endif
-
-  end function
-
-  recursive function eig_(H, itermax) result(L)
-    real(real64), parameter :: zero = 0.0_real64
-    real(real64), intent(in), contiguous, target :: H(:, :)
-    integer, intent(inout) :: itermax
-    real(real64), allocatable :: L(:)
-
-    real(real64), allocatable, target :: shifts(:)
-    real(real64), pointer :: Hsub(:,:), sub(:), diag(:)
-    integer :: m, k, i, j, itermax_m
-
-    m = size(H, 1)
-    itermax_m = 30 * m * m
-
-    if (.not.allocated(L)) then
-      allocate (L(m), source=0.0d0)
+      itermax_m = 30 * m * m
     endif
 
     if (m == 2) then
@@ -105,8 +86,8 @@ contains
     ! Subdivide the problem at the subdiagonal entries
     do i = size(sub), 1, -1
       if (sub(i) == zero) then
-        L(:i) = eig_(H(:i, :i), itermax)
-        L(i + 1:) = eig_(H(i + 1:, i + 1:), itermax)
+        L(:i) = eig_hessenberg(H(:i, :i), info, itermax_m)
+        L(i + 1:) = eig_hessenberg(H(i + 1:, i + 1:), info, itermax_m)
         return
       end if
     end do
@@ -115,8 +96,8 @@ contains
     k = 0
     do while (all(sub /= zero))
 
-      if (0 >= itermax .or. k >= itermax_m) then
-        return
+      if (k >= itermax_m) then
+        exit
       endif
 
       ! TODO: Exceptional shifts as in LAPACK
@@ -134,14 +115,13 @@ contains
       sub = eig_truncated_subdiagonal(diag, sub)
 
       k = k + 1
-      itermax = itermax - 1
     end do
 
 #ifdef _DEBUG
     call diagnostics('k =', k, itermax_m, shape(H))
 #endif
 
-    L = eig_(H, itermax)
+    L = eig_hessenberg(H, info, itermax_m - k)
 
   end
 
@@ -358,7 +338,7 @@ contains
   end
 
   ! Given an nxn matrix A, the function returns the upper Hessenberg form of A
-  function eig_hessenberg(A) result(H)
+  function eig_hessenberg_matrix(A) result(H)
     real(real64), parameter :: ulp = radix(1.0_real64) * epsilon(1.0_real64)
     real(real64), intent(in) :: A(:, :)
     real(real64), allocatable, target :: H(:, :)

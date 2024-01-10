@@ -84,7 +84,7 @@ contains
     Lreal = 0.0d0
     Limag = 0.0d0
     Z => null()
-    call dlahqr(.false., .false., n, 1, n, eig_hessenberg(X), n, Lreal, Limag, 1, n, Z, 1, info)
+    call dlahqr(.false., .false., n, 1, n, eig_hessenberg_matrix(X), n, Lreal, Limag, 1, n, Z, 1, info)
     call assert(info == 0, 'dlahqr failed')
     call assert(all(Limag == 0), 'complex-valued eigenvalues detected')
     L = Lreal

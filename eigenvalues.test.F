@@ -8,12 +8,12 @@ program eigenvalues_test
   use iso_fortran_env
   implicit none
 
-  integer :: io, info
+  integer :: info
 
   call test_suite_start()
-  call test(assert_eig_hessenberg_identity_noop)
-  call test(assert_eig_hessenberg_some_matrix_is_expected)
-  call test(assert_eig_hessenberg_twice_same_up_to_sign)
+  call test(assert_eig_hessenberg_matrix_identity_noop)
+  call test(assert_eig_hessenberg_matrix_some_matrix_is_expected)
+  call test(assert_eig_hessenberg_matrix_twice_same_up_to_sign)
   call test(assert_eig_epsilon_perturbation_no_overflow)
   call test(assert_eig_big_identity_matrix_works)
   call test(assert_eig_rectangular_matrix_does_not_work)
@@ -25,12 +25,12 @@ program eigenvalues_test
 
 contains
 
-  function assert_eig_hessenberg_identity_noop() result(ok)
+  function assert_eig_hessenberg_matrix_identity_noop() result(ok)
     logical :: ok
-    ok = all(eig_hessenberg(eye(20)) == eye(20))
+    ok = all(eig_hessenberg_matrix(eye(20)) == eye(20))
   end
 
-  function assert_eig_hessenberg_some_matrix_is_expected() result(ok)
+  function assert_eig_hessenberg_matrix_some_matrix_is_expected() result(ok)
     real(real64) :: input(3,3), expected(3,3), actual(3,3)
     real(real64) :: vec(9)
     logical :: ok
@@ -38,7 +38,7 @@ contains
     input = 1.0
     input(3,3) = 5.0
 
-    actual = eig_hessenberg(input)
+    actual = eig_hessenberg_matrix(input)
 
     vec = [1.0000000000000000d0,-1.4142135623730945d0,0.0000000000000000d0, &
           -1.4142135623730945d0,3.9999999999999978d0,-1.9999999999999996d0, &
@@ -49,15 +49,15 @@ contains
     ok = all(actual == expected)
   end
 
-  function assert_eig_hessenberg_twice_same_up_to_sign() result(ok)
+  function assert_eig_hessenberg_matrix_twice_same_up_to_sign() result(ok)
     real(real64) :: input(3,3), expected(3,3), actual(3,3)
     real(real64) :: vec(9)
     logical :: ok
 
     call random_number(input)
 
-    actual = eig_hessenberg(input)
-    expected = eig_hessenberg(actual)
+    actual = eig_hessenberg_matrix(input)
+    expected = eig_hessenberg_matrix(actual)
 
     ok = all(abs(actual) == abs(expected))
   end
@@ -70,7 +70,7 @@ contains
     identity = eye(s)
 
     expected = 1.0d0
-    actual = eig(identity, info, is_hessenberg=.true.)
+    actual = eig_hessenberg(identity, info)
     ok = all(expected == actual)
   end function
 
@@ -134,10 +134,11 @@ contains
   function assert_eig_bad_itermax_does_not_work() result(ok)
     logical :: ok
     real(real64), allocatable :: L(:)
-    integer :: infoa, infob
+    integer :: a, b, expected(2)
     real(real64) :: input(2,2) = 0.0d0
-    L = [eig(input, itermax=0, info=infoa), eig(input, itermax=-1, info=infob)]
-    ok = (infoa == EIG_ERR_BAD_ITERMAX) .and. (infob == EIG_ERR_BAD_ITERMAX)
+    expected = EIG_ERR_NO_CONVERGENCE
+    L = [eig(input, itermax=0, info=a), eig(input, itermax=-1, info=b)]
+    ok = all([a,b] == expected)
   end
 
   function assert_eig_itermax_one_no_convergence() result(ok)
