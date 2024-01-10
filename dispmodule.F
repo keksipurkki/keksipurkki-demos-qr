@@ -2498,6 +2498,7 @@ CONTAINS
     integer                    :: wtot, w, d
     logical                    :: gedit
     character(nnblk(fmt)+5)    :: fmt1
+    wtot = 0
     call readfmt(fmt, fmt1, w, d, gedit)
     if (w <= 0) then; wtot = len(errormsg); return; endif
     if (tosset % trimb == 'YES') wtot = size(x)
