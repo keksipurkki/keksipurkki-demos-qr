@@ -8,11 +8,18 @@ program eigenvalues_test
   use iso_fortran_env
   implicit none
 
+  integer :: io
+
+  open(newunit=io, status='scratch')
+  call eig_set(unit=io)
+
   call test_suite_start()
   call test(assert_eig_hessenberg_some_matrix_is_expected)
   call test(assert_eig_hessenberg_twice_same_up_to_sign)
   call test(assert_eig_epsilon_perturbation_no_overflow)
   call test(assert_eig_big_identity_matrix_works)
+  call test(assert_eig_rectangular_matrix_does_not_work)
+  call test(assert_eig_bad_itermax_does_not_work)
   call test(assert_eig_singular_zero_eigenvalue)
   call test(assert_eig_repeated_expected)
   call test_suite_end()
@@ -110,5 +117,24 @@ contains
 
     ok = all(actual == expected)
   end function
+
+  function assert_eig_rectangular_matrix_does_not_work() result(ok)
+    logical :: ok
+    real(real64), allocatable :: L(:)
+    real(real64) :: input(2,1)
+    L = eig(input)
+    ok = all(L == [0.0d0, 0.0d0])
+  end
+
+  function assert_eig_bad_itermax_does_not_work() result(ok)
+    logical :: ok
+    real(real64), allocatable :: L(:)
+    real(real64) :: input(2,2) = 0.0d0
+
+    ok = .true.
+
+    L = [eig(input, itermax=0), eig(input, itermax=-1)]
+    ok = all(L == 0.0d0)
+  end
 
 end program

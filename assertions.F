@@ -74,20 +74,21 @@ contains
 
     character(*), intent(in) :: heading
 
+    write(output_unit, '(I0,A,I0)') 1, '..', num_tests
+
     do i = 1, num_tests
 
       it = test_cases(i)
+
       ok = it%assertion()
 
       if (ok) then
-        emoji = "✅"
+        write(output_unit, '(A,X,I0,A,A)') 'ok', i, ' - ', it%name
       else
-        emoji = "❌"
+        write(output_unit, '(A,X,I0,A,A)') 'not ok', i, ' - ', it%name
       endif
 
       if (.not.ok) all_ok = .false.
-
-      write(output_unit, '(A,A,A)') it%name, repeat(" ", max(64 - len(it%name), 1)), emoji
     enddo
 
     write(output_unit, '(66("-"))')
