@@ -23,7 +23,8 @@ contains
     integer, intent(out) :: info
     logical, value, optional :: is_hessenberg
     integer, value, optional :: itermax
-    real(real64), allocatable :: L(:), H(:, :)
+    real(real64), allocatable :: L(:)
+    real(real64), allocatable, target :: H(:, :)
     integer :: m, n
 
     m = size(X, 1)
@@ -62,17 +63,15 @@ contains
 
   end function
 
-  recursive function eig_(X, itermax) result(L)
+  recursive function eig_(H, itermax) result(L)
     real(real64), parameter :: zero = 0.0_real64
-    real(real64), intent(in), target :: X(:, :)
+    real(real64), intent(in), contiguous, target :: H(:, :)
     integer, intent(inout) :: itermax
     real(real64), allocatable :: L(:)
 
-    real(real64), allocatable, target :: shifts(:), H(:,:)
+    real(real64), allocatable, target :: shifts(:)
     real(real64), pointer :: Hsub(:,:), sub(:), diag(:)
     integer :: m, k, i, j, itermax_m
-
-    H = X
 
     m = size(H, 1)
     itermax_m = 30 * m * m
