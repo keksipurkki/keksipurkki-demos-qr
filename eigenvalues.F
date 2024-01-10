@@ -7,6 +7,10 @@ module eigenvalues
   private
   public :: eig, eig_set, eig_hessenberg
 
+  integer, public, parameter :: EIG_ERR_RECTANGULAR_MATRIX = 1
+  integer, public, parameter :: EIG_ERR_BAD_ITERMAX = 2
+  integer, public, parameter :: EIG_ERR_NO_CONVERGENCE = 4
+
 contains
 
   subroutine eig_set(unit)
@@ -14,36 +18,68 @@ contains
     call disp_set(unit=unit)
   end subroutine
 
-  recursive function eig(X, itermax) result(L)
-    real(real64), parameter :: zero = 0.0_real64
+  function eig(X, info, is_hessenberg, itermax) result(L)
     real(real64), intent(in) :: X(:, :)
+    integer, intent(out) :: info
+    logical, value, optional :: is_hessenberg
     integer, value, optional :: itermax
-    real(real64), allocatable :: L(:)
-
-    real(real64), allocatable, target :: H(:, :), shifts(:)
-    real(real64), pointer :: Hsub(:,:), sub(:), diag(:)
-    integer :: m, n, k, i, j
+    real(real64), allocatable :: L(:), H(:, :)
+    integer :: m, n
 
     m = size(X, 1)
     n = size(X, 2)
+    info = 0
 
-    if (.not. present(itermax)) itermax = 30 * m * n
-
-    if (.not. allocated(L)) then
-      allocate (L(m), source=zero)
-    end if
+    if (.not.allocated(L)) then
+      allocate (L(m), source=0.0d0)
+    endif
 
     if (m /= n) then
-      call disp('Expected a square matrix')
+      info = EIG_ERR_RECTANGULAR_MATRIX
       return
     end if
+
+    if (.not.present(itermax)) itermax = 30 * m * m
+    if (.not.present(is_hessenberg)) is_hessenberg = .false.
 
     if (itermax <= 0) then
-      call disp('Expected a positive value for maximum number of iterations')
+      info = EIG_ERR_BAD_ITERMAX
       return
     end if
 
+    if (.not. is_hessenberg) then
+      H = eig_hessenberg(X)
+    else
+      H = X
+    endif
+
+    L = eig_(H, itermax)
+
+    if (itermax <= 0) then
+      info = EIG_ERR_NO_CONVERGENCE
+      return
+    endif
+
+  end function
+
+  recursive function eig_(X, itermax) result(L)
+    real(real64), parameter :: zero = 0.0_real64
+    real(real64), intent(in), target :: X(:, :)
+    integer, intent(inout) :: itermax
+    real(real64), allocatable :: L(:)
+
+    real(real64), allocatable, target :: shifts(:), H(:,:)
+    real(real64), pointer :: Hsub(:,:), sub(:), diag(:)
+    integer :: m, k, i, j, itermax_m
+
     H = X
+
+    m = size(H, 1)
+    itermax_m = 30 * m * m
+
+    if (.not.allocated(L)) then
+      allocate (L(m), source=0.0d0)
+    endif
 
     if (m == 2) then
       L = eig_trivial(H)
@@ -70,8 +106,8 @@ contains
     ! Subdivide the problem at the subdiagonal entries
     do i = size(sub), 1, -1
       if (sub(i) == zero) then
-        L(:i) = eig(H(:i, :i))
-        L(i + 1:) = eig(H(i + 1:, i + 1:))
+        L(:i) = eig_(H(:i, :i), itermax)
+        L(i + 1:) = eig_(H(i + 1:, i + 1:), itermax)
         return
       end if
     end do
@@ -80,13 +116,11 @@ contains
     k = 0
     do while (all(sub /= zero))
 
-      if (k >= itermax) then
-        call diagnostics('Max iterations exceeded. k = ', k, itermax, shape(H))
+      if (0 >= itermax .or. k >= itermax_m) then
         return
-      end if
+      endif
 
       ! TODO: Exceptional shifts as in LAPACK
-
       diag => diagonal(H)
       j = eig_shift_index(H, diag, H(m - 1:, m - 1:))
       Hsub => H(j:, j:)
@@ -101,13 +135,14 @@ contains
       sub = eig_truncated_subdiagonal(diag, sub)
 
       k = k + 1
+      itermax = itermax - 1
     end do
 
 #ifdef _DEBUG
-    call diagnostics('k =', k, itermax, shape(H))
+    call diagnostics('k =', k, itermax_m, shape(H))
 #endif
 
-    L = eig(H)
+    L = eig_(H, itermax)
 
   end
 
@@ -234,6 +269,11 @@ contains
 
     if (.not. present(dim)) dim = 1
 
+    if (all(x == 0.d0)) then
+      u = 0.0d0
+      return
+    endif
+
     rho = -1d0 * sign(1.0d0, x(dim))
 
     u = x
@@ -323,7 +363,6 @@ contains
     real(real64), parameter :: ulp = radix(1.0_real64) * epsilon(1.0_real64)
     real(real64), intent(in) :: A(:, :)
     real(real64), allocatable, target :: H(:, :)
-    real(real64), pointer :: junk(:)
     integer :: k, n
 
     n = size(A, 1)

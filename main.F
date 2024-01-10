@@ -8,10 +8,10 @@ program main
   use iso_fortran_env
   implicit none
 
-  real(real64), allocatable :: X(:, :), H(:, :)
+  real(real64), allocatable :: X(:, :)
   real(real64), allocatable :: L(:), LL(:), err(:,:)
   character(:), allocatable :: fmt
-  integer :: n = 10
+  integer :: n = 10, info
 
 #ifdef _DEBUG
   call disp_set(digmax=16)
@@ -32,9 +32,7 @@ program main
   X = data_matrix(n)
   call disp('shape(X)', shape(X), orient='row', style='pad')
 
-  H = eig_hessenberg(X)
-
-  L = eig(H)
+  L = eig(X, info=info)
   LL = eig_ref(data_matrix(n), n)
 
   L = sorted(L)

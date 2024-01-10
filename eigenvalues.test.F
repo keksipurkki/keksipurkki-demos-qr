@@ -8,23 +8,27 @@ program eigenvalues_test
   use iso_fortran_env
   implicit none
 
-  integer :: io
-
-  open(newunit=io, status='scratch')
-  call eig_set(unit=io)
+  integer :: io, info
 
   call test_suite_start()
+  call test(assert_eig_hessenberg_identity_noop)
   call test(assert_eig_hessenberg_some_matrix_is_expected)
   call test(assert_eig_hessenberg_twice_same_up_to_sign)
   call test(assert_eig_epsilon_perturbation_no_overflow)
   call test(assert_eig_big_identity_matrix_works)
   call test(assert_eig_rectangular_matrix_does_not_work)
   call test(assert_eig_bad_itermax_does_not_work)
+  call test(assert_eig_itermax_one_no_convergence)
   call test(assert_eig_singular_zero_eigenvalue)
   call test(assert_eig_repeated_expected)
   call test_suite_end()
 
 contains
+
+  function assert_eig_hessenberg_identity_noop() result(ok)
+    logical :: ok
+    ok = all(eig_hessenberg(eye(20)) == eye(20))
+  end
 
   function assert_eig_hessenberg_some_matrix_is_expected() result(ok)
     real(real64) :: input(3,3), expected(3,3), actual(3,3)
@@ -66,13 +70,13 @@ contains
     identity = eye(s)
 
     expected = 1.0d0
-    actual = eig(identity)
-
+    actual = eig(identity, info, is_hessenberg=.true.)
     ok = all(expected == actual)
   end function
 
   function assert_eig_epsilon_perturbation_no_overflow() result(ok)
     logical :: ok
+    integer :: info
     real(real64), parameter :: eps = epsilon(1.0_real64)
     real(real64) :: actual(2), expected(2)
     real(real64) :: input(2,2)
@@ -82,7 +86,7 @@ contains
     input(1,:) = [1.0d0, 1.0d0 + eps]
     input(2,:) = [1.0d0, 1.0d0]
 
-    actual = eig(input)
+    actual = eig(input, info)
     ok = all(actual == expected)
   end function
 
@@ -97,7 +101,7 @@ contains
     input(1,:) = [1.0d0, 1.0d0]
     input(2,:) = [1.0d0, 1.0d0]
 
-    actual = eig(input)
+    actual = eig(input, info)
 
     ok = all(actual == expected)
   end function
@@ -113,7 +117,7 @@ contains
     input(1,:) = [1.0d0, 3.0d0]
     input(2,:) = [0.0d0, 1.0d0]
 
-    actual = eig(input)
+    actual = eig(input, info)
 
     ok = all(actual == expected)
   end function
@@ -121,20 +125,29 @@ contains
   function assert_eig_rectangular_matrix_does_not_work() result(ok)
     logical :: ok
     real(real64), allocatable :: L(:)
-    real(real64) :: input(2,1)
-    L = eig(input)
-    ok = all(L == [0.0d0, 0.0d0])
+    integer :: info
+    real(real64) :: input(2,1) = 0.0d0
+    L = eig(input, info=info)
+    ok = info == EIG_ERR_RECTANGULAR_MATRIX
   end
 
   function assert_eig_bad_itermax_does_not_work() result(ok)
     logical :: ok
     real(real64), allocatable :: L(:)
+    integer :: infoa, infob
     real(real64) :: input(2,2) = 0.0d0
+    L = [eig(input, itermax=0, info=infoa), eig(input, itermax=-1, info=infob)]
+    ok = (infoa == EIG_ERR_BAD_ITERMAX) .and. (infob == EIG_ERR_BAD_ITERMAX)
+  end
 
-    ok = .true.
-
-    L = [eig(input, itermax=0), eig(input, itermax=-1)]
-    ok = all(L == 0.0d0)
+  function assert_eig_itermax_one_no_convergence() result(ok)
+    logical :: ok
+    real(real64), allocatable :: L(:)
+    real(real64) :: input(5,5) = 0.0d0
+    call random_number(input)
+    input = 10*input
+    L = eig(input, itermax=1, info=info)
+    ok = info == EIG_ERR_NO_CONVERGENCE
   end
 
 end program
