@@ -2,38 +2,41 @@
 
 DEBUG := 1
 SIZE := 10
-OBJS := eigenvalues.o dispmodule.o utils.o
+OBJS := eigenvalues.o dispmodule.o utils.o benchmarks.o
 PROG := qr
 LIBS := -framework Accelerate
-FLAGS := -fexternal-blas -ffree-form -fimplicit-none
+FLAGS := -std=gnu -fall-intrinsics -fexternal-blas -ffree-form -fimplicit-none
 COMPILER := gfortran
+
+# Make IEEE-754 violations fatal
+FLAGS += -ffpe-trap=invalid,zero,overflow,underflow
 
 ifdef DEBUG
 	FLAGS += -Wall -D_DEBUG -gdwarf-4 -g -static-libgfortran -Og -fcheck=all -fbacktrace
 else
-	FLAGS += -O3
+	FLAGS += -O3 -march=native
 endif
 
 all: test $(PROG) input.nml
-	./$(PROG)
 
 input.nml:
 	cat default_input.nml > input.nml
 
-scratch: scratch.out .PHONY
+scratch: scratch.out
 	./$@.out
 
-scratch.out: dispmodule.o
-	@$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@ $@.F
+scratch.out: dispmodule.o scratch.F
+	@$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
 
 test: test.out
 	./$@.out
 
-test.out: $(OBJS)
-	$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@ eigenvalues.test.F
+test.out: $(OBJS) eigenvalues.test.F
+	$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
 
-$(PROG): $(OBJS)
-	$(COMPILER) $(LIBS) $(FLAGS) -o $@ $^ main.F
+$(PROG): $(OBJS) main.F
+	$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
+	./$(PROG)
 
 $(OBJS): %.o: %.F
 	$(COMPILER) $(FLAGS) -c -o $@ $<
@@ -49,4 +52,4 @@ clean:
 dist-clean: clean
 	rm -rf *.txt
 
-.PHONY: test.out scratch.out
+.PHONY: scratch.out test.out qr
