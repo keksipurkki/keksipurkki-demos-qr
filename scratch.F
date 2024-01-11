@@ -1,27 +1,53 @@
+module polymorphic
+  use iso_fortran_env
+  implicit none
+
+  type foo
+  end type
+
+  interface assignment(=)
+    module procedure assign_one
+  end interface
+
+contains
+  pure integer function integer_one()
+    integer_one = 1
+  end
+
+  pure real function real_one()
+    real_one = 1.0
+  end
+
+  pure subroutine assign_one(lhs, rhs)
+    class(*), intent(in out) :: lhs
+    type(foo), intent(in) :: rhs
+    select type(lhs)  
+      type is (integer)
+        lhs = integer_one()
+      type is (real(real64)) 
+        lhs = real_one()
+    end select
+  end subroutine
+
+
+end module
+
 program test
   use iso_fortran_env
   use display
+  use polymorphic
   implicit none
-  real :: a(5,5), block(2,2), v(5)
-  real(real64) :: ulp, tol
+
   integer :: i
-  v = [(1.0d0*i, i = 1, 5)]
+  real(real64) :: x
 
-  call disp(radix(0.0_real64))
+  !call assign_one(i, foo())
+  !call assign_one(x, foo())
 
-  ulp = radix(1.0_real64)*epsilon(1.0_real64)
-  tol = tiny(1.0_real64) * (200 / ulp)
+  i = foo()
+  x = foo()
 
-  call disp(ulp)
-
-  contains
-
-  pure function eye(n)
-    integer, intent(in) :: n
-    integer :: i
-    real(real64) :: eye(n,n)
-    eye = 0.0d0
-    forall (i=1:n) eye(i,i) = 1.0d0
-  end function
+  call disp(i)
+  call disp(x)
 
 end program

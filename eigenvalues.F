@@ -6,41 +6,64 @@ module eigenvalues
 
   private
 
-  public :: eig, eig_hessenberg, eig_hessenberg_matrix, eig_set
+  public :: eig, eig_hessenberg, eig_hessenberg_matrix
+  public :: assignment(=)
 
   integer, public, parameter :: EIG_ERR_RECTANGULAR_MATRIX = 2**0
   integer, public, parameter :: EIG_ERR_NO_CONVERGENCE = 2**1
 
+  type eig
+    real(real64), allocatable :: input(:,:)
+    integer :: info = 0
+    integer :: itermax = 0
+  end type
+
+  interface assignment(=)
+    module procedure eig_assignment
+  end interface
+
 contains
 
-  subroutine eig_set(unit)
-    integer, intent(in) :: unit
-    call disp_set(unit=unit)
-  end subroutine
+  subroutine eig_assignment(lhs, rhs)
+    class(*), intent(in out) :: lhs(:)
+    type(eig), intent(in) :: rhs
+    complex(real64), allocatable :: L(:)
+    integer :: itermax
 
-  function eig(X, info, itermax) result(L)
-    real(real64), intent(in) :: X(:, :)
-    integer, intent(out) :: info
-    integer, intent(in), optional :: itermax
-    real(real64), allocatable :: L(:)
-    L = eig_hessenberg(eig_hessenberg_matrix(X), info, itermax)
-  end function
+    if (rhs%itermax > 0) then
+      itermax = rhs%itermax
+    else
+      itermax = 30 * size(rhs%input, 1) ** 2
+    endif
 
-  recursive function eig_hessenberg(X, info, itermax) result(L)
+    L = eig_hessenberg(eig_hessenberg_matrix(rhs%input), itermax=itermax)
+
+    select type(lhs)  
+      type is (complex(real64))
+        lhs = L
+      type is (real(real64)) 
+        lhs = real(L, kind=real64)
+      class default
+        error stop 'Unsupported left-hand side for the assignment'
+    end select
+  end 
+
+  recursive function eig_hessenberg(X, itermax) result(L)
     real(real64), parameter :: zero = 0.0_real64
     real(real64), intent(in), target :: X(:, :)
-    integer, intent(out) :: info
     integer, intent(in), optional :: itermax
     real(real64), allocatable :: L(:)
 
     real(real64), allocatable, target :: shifts(:), H(:, :)
     real(real64), pointer :: Hsub(:,:), S(:,:), sub(:), diag(:)
-    integer :: m, n, k, i, j, itermax_m
+    integer :: m, n, k, i, j, itermax_m, info
 
     allocate(H, mold=X)
     H = X
     m = size(H, 1)
     n = size(H, 2)
+
+    print *, 'Got here'
 
     if (.not.allocated(L)) then
       allocate (L(m), source=zero)
@@ -84,8 +107,8 @@ contains
     ! Subdivide the problem at the subdiagonal entries
     do i = size(sub), 1, -1
       if (sub(i) == zero) then
-        L(:i) = eig_hessenberg(H(:i, :i), info, itermax_m)
-        L(i + 1:) = eig_hessenberg(H(i + 1:, i + 1:), info, itermax_m)
+        L(:i) = eig_hessenberg(H(:i, :i), itermax_m)
+        L(i + 1:) = eig_hessenberg(H(i + 1:, i + 1:), itermax_m)
         return
       end if
     end do
@@ -121,7 +144,7 @@ contains
     call diagnostics('k =', k, itermax_m, shape(H))
 #endif
 
-    L = eig_hessenberg(H, info, itermax_m - k)
+    L = eig_hessenberg(H, itermax_m - k)
 
   end
 

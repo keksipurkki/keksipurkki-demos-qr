@@ -22,7 +22,9 @@ module assertions
     logical :: outcome = .false.
     character(:), allocatable :: message
   contains
-    procedure :: ok
+    private
+    procedure, public :: ok
+    procedure, public :: skip
     procedure :: description
     procedure :: status
   end type
@@ -43,11 +45,8 @@ contains
     class(test_run) :: self
     logical :: outcome
     character(*), optional, intent(in) :: message
-    character(128) :: fmt
 
     self%outcome = outcome
-    write(fmt, '("I",I0)') ceiling(log10(1.0d0 * num_tests)) + 1
-    fmt = '(A, X, '//trim(fmt)//' A, A)'
 
     if (present(message)) then
       self%message = message
@@ -55,9 +54,22 @@ contains
       self%message = ''
     endif
 
-    write(output_unit, fmt) self%status(), self%test_case%test_id, ' - ', self%description()
+    write(output_unit, edit_descriptor()) self%status(), self%test_case%test_id, ' - ', self%description()
     if (.not.outcome) call backtrace()
   end
+
+  subroutine skip(self)
+    class(test_run) :: self
+    self%outcome = .true.
+    self%message = '# SKIP'
+    write(output_unit, edit_descriptor()) self%status(), self%test_case%test_id, ' - ', self%description()
+  end subroutine
+
+  function edit_descriptor() result(fmt)
+    character(128) :: fmt
+    write(fmt, '("I",I0)') ceiling(log10(1.0d0 * num_tests)) + 1
+    fmt = '(A, X, '//trim(fmt)//' A, A)'
+  end function
 
   function description(self)
     class(test_run), intent(in) :: self
