@@ -43,8 +43,11 @@ contains
     class(test_run) :: self
     logical :: outcome
     character(*), optional, intent(in) :: message
+    character(128) :: fmt
 
     self%outcome = outcome
+    write(fmt, '("I",I0)') ceiling(log10(1.0d0 * num_tests)) + 1
+    fmt = '(A, X, '//trim(fmt)//' A, A)'
 
     if (present(message)) then
       self%message = message
@@ -52,7 +55,7 @@ contains
       self%message = ''
     endif
 
-    write(output_unit, '(A,X,I0,A,A)') self%status(), self%test_case%test_id, ' - ', self%description()
+    write(output_unit, fmt) self%status(), self%test_case%test_id, ' - ', self%description()
     if (.not.outcome) call backtrace()
   end
 
