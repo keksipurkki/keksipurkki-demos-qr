@@ -1,7 +1,9 @@
 *.o
 *.mod
+*.smod
 .DS_Store
 qr
 *.out
+*.dSYM
 input.nml
 *.txt
