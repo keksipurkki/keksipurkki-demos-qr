@@ -10,7 +10,7 @@ program eigenvalues_test
 
   integer :: info
 
-  call test_suite_start()
+  call test_suite_prepare()
   call test(assert_eig_hessenberg_matrix_identity_noop)
   call test(assert_eig_hessenberg_matrix_some_matrix_is_expected)
   call test(assert_eig_hessenberg_matrix_twice_same_up_to_sign)
@@ -21,16 +21,19 @@ program eigenvalues_test
   call test(assert_eig_itermax_one_no_convergence)
   call test(assert_eig_singular_zero_eigenvalue)
   call test(assert_eig_repeated_expected)
-  call test_suite_end()
+  call test_suite_run()
 
 contains
 
-  function assert_eig_hessenberg_matrix_identity_noop() result(ok)
+  subroutine assert_eig_hessenberg_matrix_identity_noop(it)
+    type(test_run), intent(inout) :: it
     logical :: ok
     ok = all(eig_hessenberg_matrix(eye(20)) == eye(20))
+    call it%ok(ok, 'Hessenberg form of the identity is the identity')
   end
 
-  function assert_eig_hessenberg_matrix_some_matrix_is_expected() result(ok)
+  subroutine assert_eig_hessenberg_matrix_some_matrix_is_expected(it)
+    type(test_run), intent(inout) :: it
     real(real64) :: input(3,3), expected(3,3), actual(3,3)
     real(real64) :: vec(9)
     logical :: ok
@@ -47,9 +50,11 @@ contains
     expected = reshape(vec, [3,3])
 
     ok = all(actual == expected)
+    call it%ok(ok)
   end
 
-  function assert_eig_hessenberg_matrix_twice_same_up_to_sign() result(ok)
+  subroutine assert_eig_hessenberg_matrix_twice_same_up_to_sign(it)
+    type(test_run), intent(inout) :: it
     real(real64) :: input(3,3), expected(3,3), actual(3,3)
     logical :: ok
 
@@ -59,22 +64,26 @@ contains
     expected = eig_hessenberg_matrix(actual)
 
     ok = all(abs(actual) == abs(expected))
+    call it%ok(ok)
   end
 
-  function assert_eig_big_identity_matrix_works() result(ok)
+  subroutine assert_eig_big_identity_matrix_works(it)
+    type(test_run), intent(inout) :: it
     integer, parameter :: s = 2000
-    logical :: ok
     real(real64), allocatable :: identity(:,:)
     real(real64) :: expected(s), actual(s)
+    logical :: ok
     identity = eye(s)
 
     expected = 1.0d0
     actual = eig_hessenberg(identity, info)
     ok = all(expected == actual)
-  end function
 
-  function assert_eig_epsilon_perturbation_no_overflow() result(ok)
-    logical :: ok
+    call it%ok(ok, 'Should be fast')
+  end
+
+  subroutine assert_eig_epsilon_perturbation_no_overflow(it)
+    type(test_run), intent(inout) :: it
     integer :: info
     real(real64), parameter :: eps = epsilon(1.0_real64)
     real(real64) :: actual(2), expected(2)
@@ -86,10 +95,11 @@ contains
     input(2,:) = [1.0d0, 1.0d0]
 
     actual = eig(input, info)
-    ok = all(actual == expected)
-  end function
+    call it%ok(all(actual == expected))
+  end
 
-  function assert_eig_singular_zero_eigenvalue() result(ok)
+  subroutine assert_eig_singular_zero_eigenvalue(it)
+    type(test_run), intent(inout) :: it
     logical :: ok
     real(real64), parameter :: eps = epsilon(1.0_real64)
     real(real64) :: actual(2), expected(2)
@@ -103,9 +113,11 @@ contains
     actual = eig(input, info)
 
     ok = all(actual == expected)
-  end function
+    call it%ok(ok)
+  end
 
-  function assert_eig_repeated_expected() result(ok)
+  subroutine assert_eig_repeated_expected(it)
+    type(test_run), intent(inout) :: it
     logical :: ok
     real(real64), parameter :: eps = epsilon(1.0_real64)
     real(real64) :: actual(2), expected(2)
@@ -119,18 +131,22 @@ contains
     actual = eig(input, info)
 
     ok = all(actual == expected)
-  end function
+    call it%ok(ok)
+  end
 
-  function assert_eig_rectangular_matrix_does_not_work() result(ok)
+  subroutine assert_eig_rectangular_matrix_does_not_work(it)
+    type(test_run), intent(inout) :: it
     logical :: ok
     real(real64), allocatable :: L(:)
     integer :: info
     real(real64) :: input(2,1) = 0.0d0
     L = eig(input, info=info)
     ok = info == EIG_ERR_RECTANGULAR_MATRIX
+    call it%ok(ok)
   end
 
-  function assert_eig_bad_itermax_does_not_work() result(ok)
+  subroutine assert_eig_bad_itermax_does_not_work(it)
+    type(test_run), intent(inout) :: it
     logical :: ok
     real(real64), allocatable :: L(:)
     integer :: a, b, expected(2)
@@ -138,9 +154,12 @@ contains
     expected = EIG_ERR_NO_CONVERGENCE
     L = [eig(input, itermax=0, info=a), eig(input, itermax=-1, info=b)]
     ok = all([a,b] == expected)
+
+    call it%ok(ok)
   end
 
-  function assert_eig_itermax_one_no_convergence() result(ok)
+  subroutine assert_eig_itermax_one_no_convergence(it)
+    type(test_run), intent(inout) :: it
     logical :: ok
     real(real64), allocatable :: L(:)
     real(real64) :: input(5,5) = 0.0d0
@@ -148,6 +167,7 @@ contains
     input = 10*input
     L = eig(input, itermax=1, info=info)
     ok = info == EIG_ERR_NO_CONVERGENCE
+    call it%ok(ok)
   end
 
 end program

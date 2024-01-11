@@ -10,6 +10,8 @@ COMPILER := gfortran
 
 ifdef DEBUG
 	FLAGS += -Wall -D_DEBUG -gdwarf-4 -g -static-libgfortran -Og -fcheck=all -fbacktrace
+else
+	FLAGS += -O3
 endif
 
 all: test $(PROG) input.nml
