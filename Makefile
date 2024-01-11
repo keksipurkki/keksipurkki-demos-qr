@@ -9,7 +9,7 @@ FLAGS := -fexternal-blas -ffree-form -fimplicit-none
 COMPILER := gfortran
 
 ifdef DEBUG
-	FLAGS += -Wall -D_DEBUG -g -Og -fcheck=all -fbacktrace
+	FLAGS += -Wall -D_DEBUG -gdwarf-4 -g -static-libgfortran -Og -fcheck=all -fbacktrace
 endif
 
 all: test $(PROG) input.nml
@@ -21,17 +21,17 @@ input.nml:
 scratch: scratch.out .PHONY
 	./$@.out
 
-scratch.out: scratch.o dispmodule.o
-	@$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
+scratch.out: dispmodule.o
+	@$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@ $@.F
 
 test: test.out
 	./$@.out
 
-test.out: $(OBJS) eigenvalues.test.o
-	$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
+test.out: $(OBJS)
+	$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@ eigenvalues.test.F
 
-$(PROG): main.o $(OBJS)
-	$(COMPILER) $(LIBS) $(FLAGS) -o $@ $^
+$(PROG): $(OBJS)
+	$(COMPILER) $(LIBS) $(FLAGS) -o $@ $^ main.F
 
 $(OBJS): %.o: %.F
 	$(COMPILER) $(FLAGS) -c -o $@ $<
@@ -42,7 +42,7 @@ $(OBJS): %.o: %.F
 eigenvalues.o: dispmodule.o utils.o
 
 clean:
-	rm -rf $(PROG) *.out *.o *.mod
+	rm -rf $(PROG) *.out *.o *.mod *.smod *.dSYM
 
 dist-clean: clean
 	rm -rf *.txt

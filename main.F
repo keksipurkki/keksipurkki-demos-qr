@@ -77,14 +77,13 @@ contains
     real(real64), intent(in) :: X(:,:)
     integer, intent(in) :: n
     real(real64) :: Lreal(n), Limag(n)
-    real(real64) :: L(n)
-    real(real64), pointer :: Z(:)
+    real(real64) :: L(n), Z(1,1), H(n,n)
     integer :: info
 
     Lreal = 0.0d0
     Limag = 0.0d0
-    Z => null()
-    call dlahqr(.false., .false., n, 1, n, eig_hessenberg_matrix(X), n, Lreal, Limag, 1, n, Z, 1, info)
+    H = eig_hessenberg_matrix(X)
+    call dlahqr(.false., .false., n, 1, n, H, n, Lreal, Limag, 1, n, Z, 1, info)
     call assert(info == 0, 'dlahqr failed')
     call assert(all(Limag == 0), 'complex-valued eigenvalues detected')
     L = Lreal

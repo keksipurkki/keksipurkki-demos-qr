@@ -26,17 +26,19 @@ contains
     L = eig_hessenberg(eig_hessenberg_matrix(X), info, itermax)
   end function
 
-  recursive function eig_hessenberg(H, info, itermax) result(L)
+  recursive function eig_hessenberg(X, info, itermax) result(L)
     real(real64), parameter :: zero = 0.0_real64
-    real(real64), intent(in), contiguous, target :: H(:, :)
+    real(real64), intent(in), target :: X(:, :)
     integer, intent(out) :: info
     integer, intent(in), optional :: itermax
     real(real64), allocatable :: L(:)
 
-    real(real64), allocatable, target :: shifts(:)
+    real(real64), allocatable, target :: shifts(:), H(:, :)
     real(real64), pointer :: Hsub(:,:), S(:,:), sub(:), diag(:)
     integer :: m, n, k, i, j, itermax_m
 
+    allocate(H, mold=X)
+    H = X
     m = size(H, 1)
     n = size(H, 2)
 
