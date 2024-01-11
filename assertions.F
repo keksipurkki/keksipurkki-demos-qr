@@ -29,12 +29,13 @@ contains
     character(*), intent(in) :: fname, message
     integer, intent(in) :: linenr
     logical, intent(in) :: ok
+    character(80) :: error_msg
 
     if (ok) then
       return
     else
-      write(error_unit, '(*(G0,:,":"))') fname, linenr, message
-      error stop
+      write(error_msg, '(3(G0,:,":"))') fname, linenr, message
+      error stop trim(error_msg)
     end if
   end subroutine
 
@@ -63,7 +64,7 @@ contains
   subroutine test_suite_start___(heading)
     character(*), intent(in) :: heading
     write(output_unit, '(A, A)') 'Start: ', heading
-    write(output_unit, '(66("-"))')
+    write(output_unit, '(80("-"))')
   end subroutine
 
   subroutine test_suite_end___(heading)
@@ -90,7 +91,7 @@ contains
       if (.not.ok) all_ok = .false.
     enddo
 
-    write(output_unit, '(66("-"))')
+    write(output_unit, '(80("-"))')
     write(output_unit, '(A, A)') 'End: ', heading
     call assert(all_ok, 'There were test failures')
   end subroutine
