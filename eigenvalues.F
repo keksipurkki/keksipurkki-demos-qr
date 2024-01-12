@@ -6,32 +6,41 @@ module eigenvalues
 
   private
 
-  public :: eig, eig_hessenberg, eig_hessenberg_matrix, eig_set
+  public :: eig, eig_hessenberg, eig_hessenberg_matrix
 
   integer, public, parameter :: EIG_ERR_RECTANGULAR_MATRIX = 2**0
   integer, public, parameter :: EIG_ERR_NO_CONVERGENCE = 2**1
 
+  interface eig
+    module procedure eig_r, eig_c
+  end interface
+
 contains
 
-  subroutine eig_set(unit)
-    integer, intent(in) :: unit
-    call disp_set(unit=unit)
-  end subroutine
-
-  function eig(X, info, itermax) result(L)
+  subroutine eig_r(X, L, info, itermax)
     real(real64), intent(in) :: X(:, :)
+    real(real64), allocatable, intent(out) :: L(:)
     integer, intent(out) :: info
     integer, intent(in), optional :: itermax
-    real(real64), allocatable :: L(:)
+    complex(real64), allocatable :: Lcomplex(:)
+    call eig_c(X, Lcomplex, info, itermax)
+    L = real(Lcomplex, kind=real64)
+  end
+
+  subroutine eig_c(X, L, info, itermax)
+    real(real64), intent(in) :: X(:, :)
+    complex(real64), allocatable, intent(out) :: L(:)
+    integer, intent(out) :: info
+    integer, intent(in), optional :: itermax
     L = eig_hessenberg(eig_hessenberg_matrix(X), info, itermax)
-  end function
+  end
 
   recursive function eig_hessenberg(X, info, itermax) result(L)
     real(real64), parameter :: zero = 0.0_real64
     real(real64), intent(in), target :: X(:, :)
     integer, intent(out) :: info
     integer, intent(in), optional :: itermax
-    real(real64), allocatable :: L(:)
+    complex(real64), allocatable :: L(:)
 
     real(real64), allocatable, target :: shifts(:), H(:, :)
     real(real64), pointer :: Hsub(:,:), S(:,:), sub(:), diag(:)
@@ -43,7 +52,7 @@ contains
     n = size(H, 2)
 
     if (.not.allocated(L)) then
-      allocate (L(m), source=zero)
+      allocate (L(m), source=(zero, zero))
     endif
 
     if (m /= n) then
@@ -203,7 +212,7 @@ contains
 
   pure function eig_trivial(X) result(L)
     real(real64), intent(in) :: X(:, :)
-    real(real64), allocatable :: L(:)
+    complex(real64), allocatable :: L(:)
     integer :: n
     n = size(X, 1)
 
@@ -216,13 +225,15 @@ contains
 
   pure function eig_2(X) result(L)
     real(real64), intent(in) :: X(2, 2)
-    real(real64) :: L(2)
-    real(real64) :: m, p, discriminant
+    complex(real64) :: L(2)
+    complex(real64) :: discriminant
+    real(real64) :: m, p
 
     m = (X(1, 1) + X(2, 2)) / 2.0d0
     p = X(1, 1) * X(2, 2) - X(1, 2) * X(2, 1)
 
-    discriminant = sqrt(m*m - p)
+    discriminant = m*m - p
+    discriminant = sqrt(discriminant)
 
     ! https://doi.org/10.1145/103162.103163
     if (m < 0.0d0) then
@@ -237,7 +248,7 @@ contains
 
   pure function eig_1(X) result(L)
     real(real64), intent(in) :: X(1, 1)
-    real(real64) :: L(1)
+    complex(real64) :: L(1)
     L(1) = X(1, 1)
   end function
 

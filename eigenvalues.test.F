@@ -72,11 +72,11 @@ contains
     type(test_run), intent(inout) :: it
     integer, parameter :: s = 2000
     real(real64), allocatable :: identity(:,:)
-    real(real64) :: expected(s), actual(s)
+    complex(real64) :: expected(s), actual(s)
     logical :: ok
     identity = eye(s)
 
-    expected = 1.0d0
+    expected = cmplx(1.0d0, kind=real64)
     actual = eig_hessenberg(identity, info)
     ok = all(expected == actual)
 
@@ -87,7 +87,7 @@ contains
     type(test_run), intent(inout) :: it
     integer :: info
     real(real64), parameter :: eps = epsilon(1.0_real64)
-    real(real64) :: actual(2), expected(2)
+    real(real64), allocatable :: actual(:), expected(:)
     real(real64) :: input(2,2)
 
     expected = [2.0d0, -eps/2.0d0]
@@ -95,7 +95,7 @@ contains
     input(1,:) = [1.0d0, 1.0d0 + eps]
     input(2,:) = [1.0d0, 1.0d0]
 
-    actual = eig(input, info)
+    call eig(input, actual, info)
     call it%ok(all(actual == expected))
   end
 
@@ -103,7 +103,7 @@ contains
     type(test_run), intent(inout) :: it
     logical :: ok
     real(real64), parameter :: eps = epsilon(1.0_real64)
-    real(real64) :: actual(2), expected(2)
+    real(real64), allocatable :: actual(:), expected(:)
     real(real64) :: input(2,2)
 
     expected = [2.d0, 0.d0]
@@ -111,7 +111,7 @@ contains
     input(1,:) = [1.0d0, 1.0d0]
     input(2,:) = [1.0d0, 1.0d0]
 
-    actual = eig(input, info)
+    call eig(input, actual, info)
 
     ok = all(actual == expected)
     call it%ok(ok)
@@ -121,7 +121,7 @@ contains
     type(test_run), intent(inout) :: it
     logical :: ok
     real(real64), parameter :: eps = epsilon(1.0_real64)
-    real(real64) :: actual(2), expected(2)
+    real(real64), allocatable :: actual(:), expected(:)
     real(real64) :: input(2,2)
 
     expected = [1.d0, 1.d0]
@@ -129,7 +129,7 @@ contains
     input(1,:) = [1.0d0, 3.0d0]
     input(2,:) = [0.0d0, 1.0d0]
 
-    actual = eig(input, info)
+    call eig(input, actual, info)
 
     ok = all(actual == expected)
     call it%ok(ok)
@@ -141,34 +141,32 @@ contains
     real(real64), allocatable :: L(:)
     integer :: info
     real(real64) :: input(2,1) = 0.0d0
-    L = eig(input, info=info)
+    call eig(input, L, info=info)
     ok = info == EIG_ERR_RECTANGULAR_MATRIX
     call it%ok(ok)
   end
 
   subroutine assert_eig_bad_itermax_does_not_work(it)
     type(test_run), intent(inout) :: it
-    logical :: ok
     real(real64), allocatable :: L(:)
     integer :: a, b, expected(2)
     real(real64) :: input(2,2) = 0.0d0
     expected = EIG_ERR_NO_CONVERGENCE
-    L = [eig(input, itermax=0, info=a), eig(input, itermax=-1, info=b)]
-    ok = all([a,b] == expected)
 
-    call it%ok(ok)
+    call eig(input, L, itermax=0, info=a)
+    call eig(input, L, itermax=-1, info=b)
+
+    call it%ok(all([a,b] == expected))
   end
 
   subroutine assert_eig_itermax_one_no_convergence(it)
     type(test_run), intent(inout) :: it
-    logical :: ok
     real(real64), allocatable :: L(:)
     real(real64) :: input(5,5) = 0.0d0
     call random_number(input)
     input = 10*input
-    L = eig(input, itermax=1, info=info)
-    ok = info == EIG_ERR_NO_CONVERGENCE
-    call it%ok(ok)
+    call eig(input, L, itermax=1, info=info)
+    call it%ok(info == EIG_ERR_NO_CONVERGENCE, 'Expected no convergence')
   end
 
 end program
