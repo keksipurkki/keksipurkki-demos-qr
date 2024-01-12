@@ -12,12 +12,16 @@ COMPILER := gfortran
 FLAGS += -ffpe-trap=invalid,zero,overflow,underflow
 
 ifdef DEBUG
-	FLAGS += -Wall -D_DEBUG -gdwarf-4 -g -static-libgfortran -Og -fcheck=all -fbacktrace
+	FLAGS += -D_DEBUG -gdwarf-4 -g -static-libgfortran -Og -fcheck=all -fbacktrace
 else
 	FLAGS += -O3 -march=native
 endif
 
-all: test $(PROG) input.nml
+ifdef DEBUG
+	FLAGS += -Wall -Wno-maybe-uninitialized
+endif
+
+all: test input.nml $(PROG)
 
 input.nml:
 	cat default_input.nml > input.nml
@@ -25,17 +29,17 @@ input.nml:
 scratch: scratch.out
 	./$@.out
 
-scratch.out: dispmodule.o scratch.F
+scratch.out: dispmodule.o utils.o scratch.F
 	@$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
 
 test: test.out
 	./$@.out
 
 test.out: $(OBJS) eigenvalues.test.F
-	$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
+	@$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
 
 $(PROG): $(OBJS) main.F
-	$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
+	@$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
 	./$(PROG)
 
 $(OBJS): %.o: %.F
