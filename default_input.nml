@@ -1,3 +1,4 @@
 &config
-n = 10
+ndim = 10
+ntimes = 10
 /
