@@ -65,7 +65,9 @@ contains
 
     call disp(repeat('*', 121))
     call disp()
+#ifdef _DEBUG
     call disp('X = ', X)
+#endif
 
     call eig(X, L, info=info)
     call eig_lapack(X, LL, n)
