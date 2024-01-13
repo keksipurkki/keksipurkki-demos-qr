@@ -103,8 +103,7 @@ contains
 
     call disp('Rel. error', err(1, :), fmt=fmt, style='pad', advance='no')
     call disp('Abs. error', err(2, :), fmt=fmt, style='pad')
-    call assert(maxval(err(1, :)) < 1e-6, 'Maximum error threshold exceeded')
-
+    call assert(maxval(err(1, :)) < 1e-10, 'Maximum error threshold exceeded')
 
   end
 
