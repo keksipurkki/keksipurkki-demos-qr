@@ -25,6 +25,8 @@ module assertions
     private
     procedure, public :: ok
     procedure, public :: skip
+    procedure :: crash
+    procedure :: write
     procedure :: description
     procedure :: status
   end type
@@ -38,6 +40,7 @@ module assertions
 
   integer :: num_tests = 0
   type(test_case), allocatable :: test_cases(:)
+  character(:), allocatable :: start_heading
 
 contains
 
@@ -54,7 +57,7 @@ contains
       self%message = ''
     endif
 
-    write(output_unit, edit_descriptor()) self%status(), self%test_case%test_id, ' - ', self%description()
+    call self%write()
     if (.not.outcome) call backtrace()
   end
 
@@ -62,8 +65,20 @@ contains
     class(test_run) :: self
     self%outcome = .true.
     self%message = '# SKIP'
-    write(output_unit, edit_descriptor()) self%status(), self%test_case%test_id, ' - ', self%description()
+    call self%write()
   end subroutine
+
+  subroutine crash(self)
+    class(test_run) :: self
+    self%outcome = .false.
+    self%message = 'The test run crashed'
+    call self%write()
+  end subroutine
+
+  subroutine write(self)
+    class(test_run) :: self
+    write(output_unit, edit_descriptor()) self%status(), self%test_case%test_id, ' - ', self%description()
+  end
 
   function edit_descriptor() result(fmt)
     character(128) :: fmt
@@ -94,7 +109,7 @@ contains
     character(*), intent(in) :: fname, message
     integer, intent(in) :: linenr
     logical, intent(in) :: ok
-    character(80) :: error_msg
+    character(128) :: error_msg
 
     if (ok) then
       return
@@ -128,8 +143,7 @@ contains
 
   subroutine test_suite_prepare___(heading)
     character(*), intent(in) :: heading
-    write(output_unit, '(A, A)') 'Start: ', heading
-    write(output_unit, '(80("-"))')
+    start_heading = heading
   end subroutine
 
   subroutine test_suite_run___(heading)
@@ -139,21 +153,72 @@ contains
     type(test_case) :: it
     character(*), intent(in) :: heading
 
-    write(output_unit, '(I0,A,I0)') 1, '..', num_tests
+    ! Cmdline
+    integer :: nargs, rc
+    character(:), allocatable :: command_line, arg
 
-    do i = 1, num_tests
+    allocate(character(128)::command_line)
+    allocate(character(128)::arg)
+    nargs = command_argument_count()
 
-      it = test_cases(i)
-      run = test_run(test_case=it)
+    call assert(nargs < 2, 'Expected zero or one arguments')
 
-      call it%assertion(run)
-      ok = run%outcome
-      if (.not.ok) all_ok = .false.
-    enddo
+    if (nargs == 1) then
 
-    write(output_unit, '(80("-"))')
-    write(output_unit, '(A, A)') 'End: ', heading
-    call assert(all_ok, 'There were test failures')
+      call get_command_argument(1, arg)
+      arg = arg(1:len(trim(arg)))
+
+      do i = 1, num_tests
+        it = test_cases(i)
+        if (it%name == arg) then
+          it = test_cases(i)
+          run = test_run(test_case=it)
+
+          call it%assertion(run)
+          ok = run%outcome
+          ! NB: The stop and error stop intrinsics output noise
+          if (.not.ok) call exit(1)
+          if (ok) call exit(0)
+        endif
+      enddo
+
+      call assert(i <= num_tests, 'No such test: '//arg)
+
+    else if (nargs == 0) then
+
+      write(output_unit, '(A, A)') 'Start: ', start_heading
+      write(output_unit, '(80("-"))')
+      write(output_unit, '(I0,A,I0)') 1, '..', num_tests
+
+      call signal(11, handler_print)
+      call signal(8, handler_print)
+
+      call get_command_argument(0, arg)
+      arg = trim(arg(1:len(trim(arg))))
+
+      do i = 1, num_tests
+        it = test_cases(i)
+        write(command_line, '(A,X,A)') arg, it%name
+        call execute_command_line(command_line, wait=.true., exitstat=rc)
+        if (rc > 1) then
+          run = test_run(test_case=it)
+          call run%crash()
+        endif
+        if (rc /= 0) all_ok = .false.
+      enddo
+
+      write(output_unit, '(80("-"))')
+      write(output_unit, '(A, A)') 'End: ', heading
+      call assert(all_ok, 'There were test failures')
+    endif
+
+  end subroutine
+
+   ! POSIX.1-2017:  void (*func)(int)
+  subroutine handler_print(signum) bind(C)
+    use iso_c_binding, only: c_int
+    integer(c_int), value :: signum
+    print *, 'handler_print invoked with signum =', signum
   end subroutine
 
 end module

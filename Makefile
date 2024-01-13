@@ -8,9 +8,6 @@ LIBS := -framework Accelerate
 FLAGS := -std=gnu -fall-intrinsics -fexternal-blas -ffree-form -fimplicit-none
 COMPILER := gfortran
 
-# Make IEEE-754 violations fatal
-FLAGS += -ffpe-trap=invalid,zero,overflow,underflow
-
 ifdef DEBUG
 	FLAGS += -D_DEBUG -gdwarf-4 -g -static-libgfortran -Og -fcheck=all -fbacktrace
 else

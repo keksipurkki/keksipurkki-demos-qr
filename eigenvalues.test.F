@@ -106,7 +106,10 @@ contains
     real(real64), allocatable :: actual(:), expected(:)
     real(real64) :: input(2,2)
 
+    expected = expected(1) ! SIGSEGV
+
     expected = [2.d0, 0.d0]
+    expected = expected(1)/expected(2) ! SIGFPE
 
     input(1,:) = [1.0d0, 1.0d0]
     input(2,:) = [1.0d0, 1.0d0]
