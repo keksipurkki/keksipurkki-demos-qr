@@ -25,8 +25,8 @@ module assertions
     private
     procedure, public :: ok
     procedure, public :: skip
-    procedure :: crash
-    procedure :: write
+    procedure :: execute
+    procedure :: to_string
     procedure :: description
     procedure :: status
   end type
@@ -40,16 +40,36 @@ module assertions
 
   integer :: num_tests = 0
   type(test_case), allocatable :: test_cases(:)
-  character(:), allocatable :: start_heading
+  character(4) :: ansi_reset
+  character(5) :: ansi_red_fg
 
 contains
 
-  subroutine ok(self, outcome, message)
+  subroutine execute(self, argv0, rc)
     class(test_run) :: self
-    logical :: outcome
-    character(*), optional, intent(in) :: message
+    character(*), intent(in) :: argv0
+    integer, intent(out) :: rc
+    character(128) :: command
+    character(128) :: message
 
-    self%outcome = outcome
+    write(command, '(A,X,A)') trim(argv0), self%test_case%name
+    call execute_command_line(command, wait=.true., exitstat=rc)
+    write(message, '(A,X,I0)') 'Test run crashed with status code', rc
+
+    if (rc > 1) then
+      call self%ok(.false., trim(message), no_backtrace=.true.)
+    endif
+  end
+
+  subroutine ok(self, is_ok, message, no_backtrace)
+    class(test_run) :: self
+    logical :: is_ok
+    character(*), optional, intent(in) :: message
+    logical, value, optional :: no_backtrace
+
+    if (.not.present(no_backtrace)) no_backtrace = .false.
+
+    self%outcome = is_ok
 
     if (present(message)) then
       self%message = message
@@ -57,40 +77,35 @@ contains
       self%message = ''
     endif
 
-    call self%write()
-    if (.not.outcome) call backtrace()
+    write(output_unit, '(A)') self%to_string()
+    if (.not.is_ok .and. .not.no_backtrace) then
+      write(error_unit, '(A)') ansi_red_fg
+      call backtrace()
+      write(error_unit, '(A)') ansi_reset
+    endif
   end
 
   subroutine skip(self)
     class(test_run) :: self
-    self%outcome = .true.
-    self%message = '# SKIP'
-    call self%write()
+    call self%ok(.true., '# SKIP')
   end subroutine
 
-  subroutine crash(self)
+  function to_string(self) result(str)
     class(test_run) :: self
-    self%outcome = .false.
-    self%message = 'The test run crashed'
-    call self%write()
-  end subroutine
-
-  subroutine write(self)
-    class(test_run) :: self
-    write(output_unit, edit_descriptor()) self%status(), self%test_case%test_id, ' - ', self%description()
-  end
-
-  function edit_descriptor() result(fmt)
-    character(128) :: fmt
+    character(128) :: fmt, tmp
+    character(:), allocatable :: str
     write(fmt, '("I",I0)') ceiling(log10(1.0d0 * num_tests)) + 1
-    fmt = '(A, X, '//trim(fmt)//' A, A)'
-  end function
+    fmt = "(A, X, " // trim(fmt) // ", A)"
+    write(tmp, fmt) self%status(), self%test_case%test_id, ' - '//self%description()
+    allocate(character(len_trim(tmp))::str)
+    str = trim(tmp)
+  end
 
   function description(self)
     class(test_run), intent(in) :: self
     character(:), allocatable :: description
     description = self%test_case%name
-    if (len(self%message) > 0) then
+    if (len_trim(self%message) > 0) then
       description = description // ' - ' // self%message
     endif
   end
@@ -109,13 +124,12 @@ contains
     character(*), intent(in) :: fname, message
     integer, intent(in) :: linenr
     logical, intent(in) :: ok
-    character(128) :: error_msg
 
     if (ok) then
       return
     else
-      write(error_msg, '(3(G0,:,":"))') fname, linenr, message
-      error stop trim(error_msg)
+      write(error_unit, '(3(G0,:,":"))') fname, linenr, message
+      call exit(1)
     end if
   end subroutine
 
@@ -142,83 +156,90 @@ contains
   end
 
   subroutine test_suite_prepare___(heading)
-    character(*), intent(in) :: heading
-    start_heading = heading
+    integer, parameter :: SIGFPE = 8
+    integer, parameter :: SIGSEGV = 11
+    character(*), intent(in), optional :: heading
+    if (present(heading)) continue
+    call signal(SIGFPE, signal_handler)
+    call signal(SIGSEGV, signal_handler)
+    ansi_red_fg = transfer([integer(int8) ::  27, 91, 51, 49, 109], ansi_red_fg)
+    ansi_reset = transfer([integer(int8) :: 27, 91, 48, 109], ansi_reset)
+  end subroutine
+
+  ! POSIX.1-2017:  void (*func)(int)
+  subroutine signal_handler(signum) bind(C)
+    use iso_c_binding, only: c_int
+    integer(c_int), value :: signum
+    error stop signum
   end subroutine
 
   subroutine test_suite_run___(heading)
-    integer :: i
-    logical :: ok = .false., all_ok = .true.
-    type(test_run) :: run
-    type(test_case) :: it
     character(*), intent(in) :: heading
 
     ! Cmdline
-    integer :: nargs, rc
-    character(:), allocatable :: command_line, arg
+    integer :: nargs
+    character(128) :: argv0, arg
 
-    allocate(character(128)::command_line)
-    allocate(character(128)::arg)
     nargs = command_argument_count()
 
-    call assert(nargs < 2, 'Expected zero or one arguments')
+    select case(nargs)
+      case (0)
+        write(output_unit, '(A, A)') 'Test suite: ', heading
+        write(output_unit, '(80("-"))')
+        call get_command_argument(0, argv0)
+        call test_suite_run_xyz(trim(argv0))
+        return
+      case (1)
+        call get_command_argument(0, argv0)
+        call get_command_argument(1, arg)
+        call test_suite_run_xyz(trim(argv0), test_case_name=trim(arg))
+        return
+      case default
+        call assert(nargs < 2, 'Expected zero or one arguments')
+    end select
 
-    if (nargs == 1) then
+  end subroutine
 
-      call get_command_argument(1, arg)
-      arg = arg(1:len(trim(arg)))
+  subroutine test_suite_run_xyz(cmd, test_case_name)
+    character(*), intent(in) :: cmd
+    character(*), optional, intent(in) :: test_case_name
+    integer :: i, rc
+    type(test_case), allocatable :: it
+    type(test_run) :: run
+    logical :: ok
 
-      do i = 1, num_tests
-        it = test_cases(i)
-        if (it%name == arg) then
-          it = test_cases(i)
-          run = test_run(test_case=it)
+    if (.not.present(test_case_name)) then
 
-          call it%assertion(run)
-          ok = run%outcome
-          ! NB: The stop and error stop intrinsics output noise
-          if (.not.ok) call exit(1)
-          if (ok) call exit(0)
-        endif
-      enddo
-
-      call assert(i <= num_tests, 'No such test: '//arg)
-
-    else if (nargs == 0) then
-
-      write(output_unit, '(A, A)') 'Start: ', start_heading
-      write(output_unit, '(80("-"))')
-      write(output_unit, '(I0,A,I0)') 1, '..', num_tests
-
-      call signal(11, handler_print)
-      call signal(8, handler_print)
-
-      call get_command_argument(0, arg)
-      arg = trim(arg(1:len(trim(arg))))
+      ok = .true.
 
       do i = 1, num_tests
-        it = test_cases(i)
-        write(command_line, '(A,X,A)') arg, it%name
-        call execute_command_line(command_line, wait=.true., exitstat=rc)
-        if (rc > 1) then
-          run = test_run(test_case=it)
-          call run%crash()
-        endif
-        if (rc /= 0) all_ok = .false.
+        run = test_run(test_case=test_cases(i))
+        call run%execute(cmd, rc)
+        if (rc /= 0) ok = .false.
       enddo
 
-      write(output_unit, '(80("-"))')
-      write(output_unit, '(A, A)') 'End: ', heading
-      call assert(all_ok, 'There were test failures')
+      if (.not.ok) then
+        write(error_unit, '(/,80("-"), /, A ,/ ,80("-"))') 'Some tests failed'
+        call assert(ok, 'Some tests failed')
+      endif
+
+    else
+
+      do i = 1, num_tests
+        if (test_cases(i)%name == test_case_name) it = test_cases(i)
+      enddo
+
+      call assert(allocated(it), 'No such test: ' // test_case_name)
+      run = test_run(test_case=it)
+
+      call it%assertion(run)
+      ok = run%outcome
+
+      ! NB: The stop and error stop intrinsics output noise
+      if (.not.ok) call exit(1)
+      if (ok) call exit(0)
+
     endif
-
-  end subroutine
-
-   ! POSIX.1-2017:  void (*func)(int)
-  subroutine handler_print(signum) bind(C)
-    use iso_c_binding, only: c_int
-    integer(c_int), value :: signum
-    print *, 'handler_print invoked with signum =', signum
-  end subroutine
+  end
 
 end module
