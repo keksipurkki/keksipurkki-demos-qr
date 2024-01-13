@@ -43,7 +43,7 @@ contains
     complex(real64), allocatable :: L(:)
 
     real(real64), allocatable, target :: shifts(:), H(:, :)
-    real(real64), pointer :: Hsub(:,:), S(:,:), sub(:), diag(:)
+    real(real64), pointer :: Hsub(:,:), S(:,:), sub(:), diag(:), sup(:)
     integer :: m, n, k, i, j, itermax_m
 
     allocate(H, mold=X)
@@ -78,11 +78,12 @@ contains
       return
     end if
 
+    sup => diagonal(H, -1)
     diag => diagonal(H)
     sub => diagonal(H, 1)
 
     ! Side-effect: overwrites subdiagonal of H
-    sub = eig_truncated_subdiagonal(diag, sub)
+    sub = eig_truncated_subdiagonal(diag, sub, sup)
 
     ! Upper triangular matrix
     if (all(sub == zero)) then
@@ -117,11 +118,12 @@ contains
       shifts = eig_shift_vector(Hsub, S)
       Hsub = eig_shifted_double_step(Hsub, shifts)
 
+      sup => diagonal(H, -1)
       diag => diagonal(H)
       sub => diagonal(H, 1)
 
       ! Side-effect: overwrites subdiagonal of H
-      sub = eig_truncated_subdiagonal(diag, sub)
+      sub = eig_truncated_subdiagonal(diag, sub, sup)
 
       k = k + 1
     end do
@@ -171,37 +173,46 @@ contains
       u = eig_shift_vector(H(indx:, indx:), S)
       lhs = abs(H(indx, indx - 1)) * (abs(u(2)) + abs(u(3)))
       rhs = abs(u(1)) * sum(abs(D(indx - 1:indx + 1)))
-      if (lhs < ulp * rhs) exit
+      if (lhs < ulp * rhs) return
     end do
 
-    indx = max(1, indx - 1)
+    indx = 1
   end
 
   ! Subdiagonal of `H` with negligible entries set to zero
   !
-  ! The converge criterion involving two adjacent diagonal element is a heuristic
-  ! proposed by Wilkinson. The subdiagonal elements `S_i,i+1` will be considered to
-  ! equal zero if `abs(S_i,i+1) < eps*(abs(S_i,i) + abs(S_i+1,i+1)) <= eps*norm(S)`.
+  ! The first convergence criterion involving two adjacent diagonal element is a heuristic proposed by Wilkinson. The subdiagonal
+  ! elements `S_i,i+1` will be considered to equal zero if `abs(S_i,i+1) < eps*(abs(S_i,i) + abs(S_i+1,i+1)) <= eps*norm(S)`.
+  !
+  ! The second criterion involing the superdiagonal is due to Ahues & Tisseur and has a better theoretical basis.
   !
   ! Reference: Ahues & Tisseur (LAWN 122, 230: 1997)
-  pure function eig_truncated_subdiagonal(D, S)
-    real(real64), intent(in) :: D(:), S(:)
-    real(real64), allocatable :: thrsd(:), adjacent(:, :)
+  function eig_truncated_subdiagonal(D, sub, super)
+    real(real64), intent(in) :: D(:), sub(:), super(:)
+    real(real64), allocatable :: thrsd(:,:), adjacent(:, :)
     real(real64), allocatable :: eig_truncated_subdiagonal(:)
     real(real64) :: ulp, tol
 
     ulp = radix(1.0_real64) * epsilon(1.0_real64)
     tol = tiny(1.0_real64) * (size(D) / ulp)
 
-    adjacent = reshape([D(2:), D(1:)], [2, size(S)], order=[2, 1])
-    thrsd = sum(abs(adjacent), 1)
+    allocate (eig_truncated_subdiagonal(size(sub)))
+    allocate (thrsd(size(sub), 2))
 
-    allocate (eig_truncated_subdiagonal(size(S)))
+    thrsd = 0.0d0
 
-    where (abs(S) < ulp*thrsd)
+    adjacent = reshape([D(2:), D(1:)], [2, size(sub)], order=[2, 1])
+    thrsd(:, 1) = sum(abs(adjacent), 1)
+
+    adjacent = reshape([D(2:), -D(1:)], [2, size(sub)], order=[2, 1])
+    thrsd(:, 2) = abs(D(2:)) * abs(sum(adjacent, 1))
+
+    thrsd = ulp*thrsd
+
+    where (abs(sub) < thrsd(:, 1) .and. abs(sub)*abs(super) < thrsd(:, 2))
       eig_truncated_subdiagonal = 0.0d0
     elsewhere
-      eig_truncated_subdiagonal = S
+      eig_truncated_subdiagonal = sub
     end where
 
     where (abs(eig_truncated_subdiagonal) < tol)

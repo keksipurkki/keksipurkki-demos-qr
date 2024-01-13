@@ -99,9 +99,12 @@ contains
     real(real64), intent(in), contiguous, target :: H(:, :)
     integer, value, optional :: offset
     real(real64), pointer :: tmp(:), s(:)
+    integer :: n
+    n = size(H, 1) + 1
     tmp(1:size(H)) => H
     if (.not. present(offset)) offset = 0
-    s => tmp(1 + offset :: size(H, 1) + 1)
+    if (offset < 0) offset = offset + n
+    s => tmp(1 + offset :: n)
   end function
 
 end module
