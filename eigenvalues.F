@@ -255,6 +255,11 @@ contains
       L(2) = p / (m + discriminant)
     endif
 
+    ! Is this ok?
+    if (aimag(L(1)) /= 0.0d0) then
+      L(2) = conjg(L(1))
+    endif
+
   end function
 
   pure function eig_1(X) result(L)

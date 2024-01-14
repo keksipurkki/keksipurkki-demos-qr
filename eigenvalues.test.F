@@ -171,7 +171,7 @@ contains
   end
 
   subroutine assert_eig_complex_eigenvalues_strictly_conjugates(it)
-    real(real64), parameter :: tol = 2*epsilon(1.0_real64)
+    real(real64), parameter :: tol = epsilon(1.0_real64)
     type(test_run), intent(inout) :: it
     integer :: info, i
     complex(real64) :: z
@@ -187,11 +187,9 @@ contains
     call assert(mod(size(L), 2) == 0, 'No complex conjugates found')
     call assert(size(L) > 0, 'No complex conjugates found')
 
-    print *, 'Tolerance: ', tol
     do i = 1, size(L), 2
       z = abs(L(i) - conjg(L(i + 1)))
-      print *, real(z), aimag(z)
-      ok = real(z) <= tol .and. aimag(z) <= tol
+      ok = real(z) < tol .and. aimag(z) < tol
       if (.not.ok) exit
     enddo
 
