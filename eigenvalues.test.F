@@ -21,6 +21,7 @@ program eigenvalues_test
   call test(assert_eig_itermax_one_no_convergence)
   call test(assert_eig_singular_zero_eigenvalue)
   call test(assert_eig_repeated_expected)
+  call test(assert_eig_complex_eigenvalues_strictly_conjugates)
   call test_suite_run()
 
 contains
@@ -167,6 +168,34 @@ contains
     input = 10*input
     call eig(input, L, itermax=1, info=info)
     call it%ok(info == EIG_ERR_NO_CONVERGENCE, 'Expected no convergence')
+  end
+
+  subroutine assert_eig_complex_eigenvalues_strictly_conjugates(it)
+    real(real64), parameter :: tol = 2*epsilon(1.0_real64)
+    type(test_run), intent(inout) :: it
+    integer :: info, i
+    complex(real64) :: z
+    complex(real64), allocatable :: L(:)
+    real(real64), allocatable :: X(:, :)
+    logical :: ok
+
+    allocate(X(100,100), source=0.d0)
+    call random_number(X)
+    call eig(X, L, info=info)
+
+    L = pack(L, aimag(L) /= 0.0d0)
+    call assert(mod(size(L), 2) == 0, 'No complex conjugates found')
+    call assert(size(L) > 0, 'No complex conjugates found')
+
+    print *, 'Tolerance: ', tol
+    do i = 1, size(L), 2
+      z = abs(L(i) - conjg(L(i + 1)))
+      print *, real(z), aimag(z)
+      ok = real(z) <= tol .and. aimag(z) <= tol
+      if (.not.ok) exit
+    enddo
+
+    call it%ok(ok, 'Expected complex conjugates')
   end
 
 end program
