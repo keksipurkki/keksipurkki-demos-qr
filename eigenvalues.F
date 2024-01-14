@@ -48,7 +48,7 @@ contains
 
     real(real64) :: tic, toc, ticqr, tocqr
 
-    call cpu_time(toc)
+!    call cpu_time(toc)
 
     allocate(H, mold=X)
     H = X
@@ -105,7 +105,7 @@ contains
     end do
 
     ! Perform QR steps until the problem splits
-    call cpu_time(tocqr)
+!    call cpu_time(tocqr)
     k = 0
     do while (all(sub /= zero))
 
@@ -132,13 +132,13 @@ contains
 
       k = k + 1
     end do
-    call cpu_time(ticqr)
+!    call cpu_time(ticqr)
 
 #ifdef _DEBUG
     call diagnostics('k =', k, itermax_m, shape(H))
 #endif
 
-    call cpu_time(tic)
+!    call cpu_time(tic)
 #ifdef _PERF
     call disp('eig_hessenberg:', [1.0d0*k, 100 * (ticqr-tocqr) / (tic - toc), tic - toc], orient='row')
 #endif
@@ -304,7 +304,7 @@ contains
 
     real(real64) :: tic, toc, ticloop, tocloop
 
-    call cpu_time(toc)
+!    call cpu_time(toc)
 
     m = size(H, 1)
     n = size(H, 2)
@@ -323,7 +323,7 @@ contains
     call eig_reflect(H, shifts, 1, 1)
 
     ! Restore upper Hessenberg structure by "bulge chasing"
-    call cpu_time(tocloop)
+!    call cpu_time(tocloop)
     do k = 1, m - 2
       r = min(m - k, block_size)
       call eig_reflect(H, H(k + 1:k + r, k), k + 1, k)
@@ -333,9 +333,9 @@ contains
     do k = 1, m - 2
       H(k + 2:, k) = 0.0d0
     enddo
-    call cpu_time(ticloop)
+!    call cpu_time(ticloop)
 
-    call cpu_time(tic)
+!    call cpu_time(tic)
 #ifdef _PERF
     call disp('eig_shifted_double_step:', [m-2.0d0, 100*(ticloop-tocloop)/(tic-toc), tic - toc], orient='row')
 #endif
@@ -360,22 +360,28 @@ contains
 
     real(real64) :: u(size(vec))
     real(real64), pointer :: X(:, :)
-    real(real64), allocatable :: urow(:, :), ucol(:, :)
-    integer :: start, end, offset
+    real(real64), allocatable :: urow(:, :), ucol(:, :), P(:, :)
+    integer :: start, end, offset, m
 
     start = row
     end = start + size(vec) - 1
     offset = col
+    m = size(H, 1)
 
     u = eig_reflector(vec, dim=1)
     urow = reshape(u, [1, size(u)])
     ucol = reshape(u, [size(u), 1])
 
-    X => H(start:end, offset:)
-    X = X - matmul(2.0d0 * ucol, matmul(urow, X))
+    P = eye(size(vec)) - matmul(2.0d0*ucol, urow)
 
-    X => H(:,start:end)
-    X = X - matmul(matmul(X, 2.0d0 * ucol), urow)
+    ! Left application
+    X => H(start:end, offset:m)
+    X = matmul(P, X)
+
+    ! Right application
+    X => H(1:min(offset + 4, m), start:end)
+    X = matmul(X, P)
+
   end
 
   ! Given an nxn matrix A, the function returns the upper Hessenberg form of A

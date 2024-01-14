@@ -8,14 +8,15 @@ program perf
   use benchmarks, only: pseudo_random_lower_hessenberg
   implicit none
 
-  integer, parameter :: ntimes = 10, ndim = 500
+  integer, parameter :: ntimes = 10, ndim = 400
   integer :: k, info = 0
   real(real64), allocatable :: H(:,:)
-  complex(real64), allocatable :: L(:)
-  real(real64) :: tic, toc, t(ntimes)
+  complex(real64), allocatable :: L(:), Lref(:)
+  real(real64) :: tic, toc, t(ntimes), tlapack, tavg
 
   H = eig_hessenberg_matrix(pseudo_random_lower_hessenberg(ndim))
 
+  t = 0.0d0
   do k = 1, ntimes
     call cpu_time(toc)
     L = eig_hessenberg(H, info)
@@ -24,6 +25,49 @@ program perf
     t(k) = tic - toc
   enddo
 
-  write(output_unit, '("Average = ", G0)') sum(t) / size(t)
+  tavg = sum(t) / size(t)
+
+  write(output_unit, '("Average = ", G0)') tavg
+
+  t = 0.0d0
+  do k = 1, ntimes
+    call cpu_time(toc)
+    call eig_lapack(H, Lref, ndim, info)
+    call cpu_time(tic)
+    call assert(info == 0, 'dlahqr failed')
+    t(k) = tic - toc
+  enddo
+
+  tlapack = sum(t) / size(t)
+
+  write(output_unit, '("Average = ", G0)') tlapack
+
+  do k = 1, ndim
+    write(output_unit, *) L(k)
+  enddo
+
+  write(output_unit, *)
+
+  do k = 1, ndim
+    write(output_unit, *) Lref(k)
+  enddo
+
+  print *, 'LAPACK speed up ', tavg/tlapack
+
+contains
+
+  subroutine eig_lapack(X, L, n, info)
+    real(real64), intent(in) :: X(:, :)
+    integer, intent(out) :: info
+    complex(real64), allocatable, intent(out) :: L(:)
+    integer, intent(in) :: n
+    real(real64) :: Lreal(n), Limag(n)
+    real(real64) :: Z(1, 1)
+
+    Lreal = 0.0d0
+    Limag = 0.0d0
+    call my_dlahqr(.false., .false., n, 1, n, X, n, Lreal, Limag, 1, n, Z, 1, info)
+    L = cmplx(Lreal, Limag, kind=real64)
+  end
 
 end program

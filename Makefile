@@ -7,8 +7,7 @@ PROG := qr
 LIBS := -framework Accelerate
 FLAGS := -std=gnu -fall-intrinsics -ffree-form -fimplicit-none
 COMPILER := gfortran
-PERF_FLAGS := -ffree-form -fimplicit-none -O3 -march=native -mtune=native -fexternal-blas
-PERF_FLAGS += -malign-double -funroll-all-loops
+PERF_FLAGS := -std=gnu -ffree-form -fimplicit-none -O3 -march=native -mtune=native -fexternal-blas
 
 ifdef DEBUG
 	FLAGS += -D_DEBUG -gdwarf-4 -g -static-libgfortran -Og -fcheck=all -fbacktrace
@@ -26,7 +25,7 @@ input.nml:
 perf: perf.out
 	./$@.out
 
-perf.out: dispmodule.o utils.o benchmarks.o perf.F
+perf.out: dlahqr.o dispmodule.o utils.o benchmarks.o perf.F
 	$(COMPILER) $(PERF_FLAGS) -c eigenvalues.F -o eigenvalues.o
 	$(COMPILER) $(LIBS) $(PERF_FLAGS) eigenvalues.o $^ -o $@
 
@@ -42,8 +41,11 @@ test: test.out
 test.out: $(OBJS) eigenvalues.test.F
 	@$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
 
+dlahqr.o: dlahqr.F
+	$(COMPILER) -c -std=legacy dlahqr.F -o dlahqr.o
+
 $(PROG): $(OBJS) main.F
-	@$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
+	$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
 	./$(PROG)
 
 $(OBJS): %.o: %.F
