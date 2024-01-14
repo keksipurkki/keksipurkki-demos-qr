@@ -138,19 +138,18 @@ contains
     character(*), intent(in) :: test_case_name
     type(test_case), allocatable :: copy(:)
 
-    num_tests = num_tests + 1
-
     if (.not.allocated(test_cases)) then
       allocate(test_cases(10))
     endif
 
-    if (num_tests > size(test_cases)) then
+    if (num_tests >= size(test_cases)) then
       copy = test_cases
       deallocate(test_cases)
       allocate(test_cases(2*num_tests))
-      test_cases = copy
+      test_cases(1:num_tests) = copy
     endif
 
+    num_tests = num_tests + 1
     test_cases(num_tests) = test_case(assertion=it, test_id=num_tests, name=test_case_name)
 
   end
