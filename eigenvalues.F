@@ -46,6 +46,10 @@ contains
     real(real64), pointer :: Hsub(:,:), S(:,:), sub(:), diag(:), sup(:)
     integer :: m, n, k, i, j, itermax_m
 
+    real(real64) :: tic, toc, ticqr, tocqr
+
+    call cpu_time(toc)
+
     allocate(H, mold=X)
     H = X
     m = size(H, 1)
@@ -101,6 +105,7 @@ contains
     end do
 
     ! Perform QR steps until the problem splits
+    call cpu_time(tocqr)
     k = 0
     do while (all(sub /= zero))
 
@@ -116,7 +121,7 @@ contains
 
       S => Hsub(m - j:, m - j:)
       shifts = eig_shift_vector(Hsub, S)
-      Hsub = eig_shifted_double_step(Hsub, shifts)
+      call eig_shifted_double_step(Hsub, shifts)
 
       sup => diagonal(H, -1)
       diag => diagonal(H)
@@ -127,11 +132,16 @@ contains
 
       k = k + 1
     end do
+    call cpu_time(ticqr)
 
 #ifdef _DEBUG
     call diagnostics('k =', k, itermax_m, shape(H))
 #endif
 
+    call cpu_time(tic)
+#ifdef _PERF
+    call disp('eig_hessenberg:', [1.0d0*k, 100 * (ticqr-tocqr) / (tic - toc), tic - toc], orient='row')
+#endif
     L = eig_hessenberg(H, info, itermax_m - k)
 
   end
@@ -207,16 +217,12 @@ contains
     adjacent = reshape([D(2:), -D(1:)], [2, size(sub)], order=[2, 1])
     thrsd(:, 2) = abs(D(2:)) * abs(sum(adjacent, 1))
 
-    thrsd = ulp*thrsd
+    thrsd = max(ulp*thrsd, tol)
 
     where (abs(sub) < thrsd(:, 1) .and. abs(sub)*abs(super) < thrsd(:, 2))
       eig_truncated_subdiagonal = 0.0d0
     elsewhere
       eig_truncated_subdiagonal = sub
-    end where
-
-    where (abs(eig_truncated_subdiagonal) < tol)
-      eig_truncated_subdiagonal = 0.0d0
     end where
 
   end function
@@ -290,16 +296,18 @@ contains
 
   end function
 
-  function eig_shifted_double_step(H, shifts) result(Hk)
+  subroutine eig_shifted_double_step(H, shifts)
     integer, parameter :: block_size = 3, shift_size = 2
-    real(real64), intent(in) :: H(:, :), shifts(block_size)
-    real(real64), allocatable :: Hk(:, :)
+    real(real64), intent(in out) :: H(:, :)
+    real(real64), intent(in) :: shifts(block_size)
     integer :: m, n, k, r
+
+    real(real64) :: tic, toc, ticloop, tocloop
+
+    call cpu_time(toc)
 
     m = size(H, 1)
     n = size(H, 2)
-
-    Hk = H
 
     if (m /= n) return
     if (m < block_size) return
@@ -312,20 +320,26 @@ contains
     !      [0,  I]]
     !
     ! where PP = I - 2*u*transpose(u) is a 3x3 Householder reflection matrix
-    call eig_reflect(Hk, shifts, 1, 1)
+    call eig_reflect(H, shifts, 1, 1)
 
     ! Restore upper Hessenberg structure by "bulge chasing"
+    call cpu_time(tocloop)
     do k = 1, m - 2
       r = min(m - k, block_size)
-      call eig_reflect(Hk, Hk(k + 1:k + r, k), k + 1, k)
+      call eig_reflect(H, H(k + 1:k + r, k), k + 1, k)
     end do
 
     ! Junk
     do k = 1, m - 2
-      Hk(k + 2:, k) = 0.0d0
+      H(k + 2:, k) = 0.0d0
     enddo
+    call cpu_time(ticloop)
 
-  end function
+    call cpu_time(tic)
+#ifdef _PERF
+    call disp('eig_shifted_double_step:', [m-2.0d0, 100*(ticloop-tocloop)/(tic-toc), tic - toc], orient='row')
+#endif
+  end
 
 
   ! In-place computation of transpose(P)*H*P with respect to the following block structure

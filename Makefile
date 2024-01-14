@@ -5,13 +5,13 @@ SIZE := 10
 OBJS := eigenvalues.o dispmodule.o utils.o benchmarks.o
 PROG := qr
 LIBS := -framework Accelerate
-FLAGS := -std=gnu -fall-intrinsics -fexternal-blas -ffree-form -fimplicit-none
+FLAGS := -std=gnu -fall-intrinsics -ffree-form -fimplicit-none
 COMPILER := gfortran
+PERF_FLAGS := -ffree-form -fimplicit-none -O3 -march=native -mtune=native -fexternal-blas
+PERF_FLAGS += -malign-double -funroll-all-loops
 
 ifdef DEBUG
 	FLAGS += -D_DEBUG -gdwarf-4 -g -static-libgfortran -Og -fcheck=all -fbacktrace
-else
-	FLAGS += -O3 -march=native
 endif
 
 ifdef DEBUG
@@ -22,6 +22,13 @@ all: test input.nml $(PROG)
 
 input.nml:
 	cat default_input.nml > input.nml
+
+perf: perf.out
+	./$@.out
+
+perf.out: dispmodule.o utils.o benchmarks.o perf.F
+	$(COMPILER) $(PERF_FLAGS) -c eigenvalues.F -o eigenvalues.o
+	$(COMPILER) $(LIBS) $(PERF_FLAGS) eigenvalues.o $^ -o $@
 
 scratch: scratch.out
 	./$@.out
@@ -53,4 +60,4 @@ clean:
 dist-clean: clean
 	rm -rf *.txt
 
-.PHONY: scratch.out test.out qr
+.PHONY: scratch.out test.out qr perf.out
