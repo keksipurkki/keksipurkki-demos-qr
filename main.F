@@ -1,6 +1,35 @@
 #include "assertions.F"
 
+module parameters
+  use iso_fortran_env
+  implicit none
+  real(real64), parameter :: max_relative_error = 1e-10
+  integer :: ndim = 10
+  integer :: ntimes = 10
+  contains
+
+  subroutine read_parameters(fname)
+    character(len=*), intent(in) :: fname
+    integer :: io, rc
+    namelist /config/ ndim, ntimes
+
+    inquire (file=fname, iostat=rc)
+
+    if (rc /= 0) then
+      write (error_unit, '("Error: input file ", a, " does not exist")') fname
+      return
+    end if
+
+    open (action='read', file=fname, iostat=rc, newunit=io)
+    read (nml=config, iostat=rc, unit=io)
+    if (rc /= 0) write (error_unit, '("Error: invalid Namelist format")')
+    close (io)
+  end subroutine
+
+end module
+
 program main
+  use parameters
   use display
   use utils
   use eigenvalues
@@ -10,7 +39,7 @@ program main
   use iso_fortran_env
   implicit none
 
-  integer :: ndim = 10, ntimes = 10, k
+  integer ::  k
 
 #ifdef _DEBUG
   call disp_set(digmax=16)
@@ -18,7 +47,7 @@ program main
   call disp_set(digmax=5)
 #endif
 
-  call read_input('input.nml', ndim, ntimes)
+  call read_parameters('input.nml')
   call disp('ndim = ', ndim)
   call disp('ntimes = ', ntimes)
 
@@ -41,7 +70,6 @@ program main
   ! ... antisymmetrical matrices (purely imaginary eigenvalues)
 
 contains
-
 
   subroutine benchmark(n, src)
     integer, intent(in) :: n
@@ -105,7 +133,7 @@ contains
 
     call disp('Rel. error', err(1, :), fmt=fmt, style='pad', advance='no')
     call disp('Abs. error', err(2, :), fmt=fmt, style='pad')
-    call assert(maxval(err(1, :)) < 1e-10, 'Maximum error threshold exceeded')
+    call assert(maxval(err(1, :)) < max_relative_error, 'Maximum error threshold exceeded')
 
   end
 
@@ -124,25 +152,6 @@ contains
     call assert(info == 0, 'dlahqr failed')
     L = cmplx(Lreal, Limag, kind=real64)
   end
-
-  subroutine read_input(fname, ndim, ntimes)
-    character(len=*), intent(in) :: fname
-    integer, intent(out) :: ndim, ntimes
-    integer :: io, rc
-    namelist /config/ ndim, ntimes
-
-    inquire (file=fname, iostat=rc)
-
-    if (rc /= 0) then
-      write (error_unit, '("Error: input file ", a, " does not exist")') fname
-      return
-    end if
-
-    open (action='read', file=fname, iostat=rc, newunit=io)
-    read (nml=config, iostat=rc, unit=io)
-    if (rc /= 0) write (error_unit, '("Error: invalid Namelist format")')
-    close (io)
-  end subroutine
 
   subroutine output(fname, V, digmax)
     character(len=*), intent(in) :: fname
