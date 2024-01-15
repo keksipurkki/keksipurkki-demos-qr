@@ -175,7 +175,9 @@ contains
       call disp()
       toc = tic
       call cpu_time(tic)
-      if (toc >= 0) call disp('Perf', tic - toc, style='pad')
+      if (toc >= 0) then
+        call disp('perf:', [1.0d0*shape(H), tic - toc], orient='row')
+      endif
       call disp('H', H, style='pad', digmax=16)
       call disp()
     endif
