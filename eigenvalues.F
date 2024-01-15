@@ -1,3 +1,5 @@
+#define nop(x) associate( x => x ); end associate
+
 module eigenvalues
   use iso_fortran_env
   use display
@@ -6,7 +8,7 @@ module eigenvalues
 
   private
 
-  public :: eig, eig_hessenberg, eig_hessenberg_matrix
+  public :: eig, eig_callback, eig_hessenberg, eig_hessenberg_matrix
 
   integer, public, parameter :: EIG_ERR_RECTANGULAR_MATRIX = 2**0
   integer, public, parameter :: EIG_ERR_NO_CONVERGENCE = 2**1
@@ -15,30 +17,39 @@ module eigenvalues
     module procedure eig_r, eig_c
   end interface
 
+  abstract interface
+    subroutine eig_callback(err, H)
+      use iso_fortran_env
+      integer, intent(in) :: err
+      real(real64), intent(in) :: H(:,:)
+    end
+  end interface
+
 contains
 
-  subroutine eig_r(X, L, info, itermax)
+  subroutine eig_r(X, L, itermax, callback)
     real(real64), intent(in) :: X(:, :)
     real(real64), allocatable, intent(out) :: L(:)
-    integer, intent(out) :: info
+    procedure(eig_callback), optional :: callback
     integer, intent(in), optional :: itermax
     complex(real64), allocatable :: Lcomplex(:)
-    call eig_c(X, Lcomplex, info, itermax)
+    call eig_c(X, Lcomplex, itermax, callback)
     L = real(Lcomplex, kind=real64)
   end
 
-  subroutine eig_c(X, L, info, itermax)
+  subroutine eig_c(X, L, itermax, callback)
     real(real64), intent(in) :: X(:, :)
     complex(real64), allocatable, intent(out) :: L(:)
-    integer, intent(out) :: info
+    procedure(eig_callback), optional :: callback
     integer, intent(in), optional :: itermax
-    L = eig_hessenberg(eig_hessenberg_matrix(X), info, itermax)
+    L = eig_hessenberg(eig_hessenberg_matrix(X), itermax, callback)
   end
 
-  recursive function eig_hessenberg(X, info, itermax) result(L)
+  recursive function eig_hessenberg(X, itermax, callback) result(L)
     real(real64), parameter :: zero = 0.0_real64
     real(real64), intent(in), target :: X(:, :)
-    integer, intent(out) :: info
+    procedure(eig_callback), optional :: callback
+    procedure(eig_callback), pointer :: cb
     integer, intent(in), optional :: itermax
     complex(real64), allocatable :: L(:)
 
@@ -46,11 +57,14 @@ contains
     real(real64), pointer :: Hsub(:,:), S(:,:), sub(:), diag(:), sup(:)
     integer :: m, n, k, i, j, itermax_m
 
-    real(real64) :: tic, toc, ticqr, tocqr
-
-!    call cpu_time(toc)
+    if (present(callback)) then
+      cb => callback
+    else
+      cb => noop_fallback
+    endif
 
     allocate(H, mold=X)
+
     H = X
     m = size(H, 1)
     n = size(H, 2)
@@ -60,7 +74,7 @@ contains
     endif
 
     if (m /= n) then
-      info = EIG_ERR_RECTANGULAR_MATRIX
+      call cb(EIG_ERR_RECTANGULAR_MATRIX, H)
       return
     end if
 
@@ -68,9 +82,11 @@ contains
     if (present(itermax)) itermax_m = itermax
 
     if (itermax_m <= 0) then
-      info = EIG_ERR_NO_CONVERGENCE
+      call cb(EIG_ERR_NO_CONVERGENCE, H)
       return
     end if
+
+    call cb(0, H)
 
     if (m == 2) then
       L = eig_trivial(H)
@@ -98,14 +114,13 @@ contains
     ! Subdivide the problem at the subdiagonal entries
     do i = size(sub), 1, -1
       if (sub(i) == zero) then
-        L(:i) = eig_hessenberg(H(:i, :i), info, itermax_m)
-        L(i + 1:) = eig_hessenberg(H(i + 1:, i + 1:), info, itermax_m)
+        L(:i) = eig_hessenberg(H(:i, :i), itermax_m, cb)
+        L(i + 1:) = eig_hessenberg(H(i + 1:, i + 1:), itermax_m, cb)
         return
       end if
     end do
 
     ! Perform QR steps until the problem splits
-!    call cpu_time(tocqr)
     k = 0
     do while (all(sub /= zero))
 
@@ -132,17 +147,12 @@ contains
 
       k = k + 1
     end do
-!    call cpu_time(ticqr)
 
 #ifdef _DEBUG
     call diagnostics('k =', k, itermax_m, shape(H))
 #endif
 
-!    call cpu_time(tic)
-#ifdef _PERF
-    call disp('eig_hessenberg:', [1.0d0*k, 100 * (ticqr-tocqr) / (tic - toc), tic - toc], orient='row')
-#endif
-    L = eig_hessenberg(H, info, itermax_m - k)
+    L = eig_hessenberg(H, itermax_m - k, cb)
 
   end
 
@@ -244,7 +254,7 @@ contains
     real(real64), intent(in) :: X(2, 2)
     complex(real64) :: L(2)
     complex(real64) :: discriminant
-    real(real64) :: m, p
+    real(real64) :: m, p, dist(2)
 
     m = (X(1, 1) + X(2, 2)) / 2.0d0
     p = X(1, 1) * X(2, 2) - X(1, 2) * X(2, 1)
@@ -261,9 +271,14 @@ contains
       L(2) = p / (m + discriminant)
     endif
 
-    ! Is this ok?
-    if (aimag(L(1)) /= 0.0d0) then
-      L(2) = conjg(L(1))
+    ! Probably silly
+    if (L(1) /= conjg(L(1))) then
+      dist = abs(L*L - 2*m*L + p)
+      if (dist(1) <= dist(2)) then
+        L(2) = conjg(L(1))
+      else
+        L(1) = conjg(L(2))
+      endif
     endif
 
   end function
@@ -302,10 +317,6 @@ contains
     real(real64), intent(in) :: shifts(block_size)
     integer :: m, n, k, r
 
-    real(real64) :: tic, toc, ticloop, tocloop
-
-!    call cpu_time(toc)
-
     m = size(H, 1)
     n = size(H, 2)
 
@@ -320,27 +331,24 @@ contains
     !      [0,  I]]
     !
     ! where PP = I - 2*u*transpose(u) is a 3x3 Householder reflection matrix
-    call eig_reflect(H, shifts, 1, 1)
+    !call disp('Horig = ', H)
+    call eig_reflect__(H, shifts, 1, 1)
+    !call disp('Hbulged = ', H)
 
     ! Restore upper Hessenberg structure by "bulge chasing"
-!    call cpu_time(tocloop)
     do k = 1, m - 2
       r = min(m - k, block_size)
-      call eig_reflect(H, H(k + 1:k + r, k), k + 1, k)
+      call eig_reflect__(H, H(k + 1:k + r, k), k + 1, k)
     end do
 
     ! Junk
     do k = 1, m - 2
       H(k + 2:, k) = 0.0d0
     enddo
-!    call cpu_time(ticloop)
 
-!    call cpu_time(tic)
-#ifdef _PERF
-    call disp('eig_shifted_double_step:', [m-2.0d0, 100*(ticloop-tocloop)/(tic-toc), tic - toc], orient='row')
-#endif
+    !call disp('Hafter = ', H)
+
   end
-
 
   ! In-place computation of transpose(P)*H*P with respect to the following block structure
   !
@@ -384,6 +392,68 @@ contains
 
   end
 
+  subroutine eig_reflect__(H, vec, row, col)
+    real(real64), intent(inout), target :: H(:, :)
+    integer, intent(in) :: row, col
+    real(real64), intent(in) :: vec(:)
+
+    real(real64) :: u(size(vec))
+    real(real64), pointer :: v(:)
+    real(real64), allocatable :: urow(:, :), ucol(:, :), P(:, :)
+    integer :: start, end, offset, m, i
+    real(real64) :: a,b,c
+
+    start = row
+    end = start + size(vec) - 1
+    offset = col
+    m = size(H, 1)
+
+    u = eig_reflector(vec, dim=1)
+    urow = reshape(u, [1, size(u)])
+    ucol = reshape(u, [size(u), 1])
+
+    P = matmul(2.0*ucol, urow)
+
+    ! Left application
+    do i = offset, m
+      v => H(start:end, i)
+      if (size(v) == 3) then
+        a = v(1) * P(1,1) + v(2) * P(1,2) + v(3) * P(1,3)
+        b = v(1) * P(2,1) + v(2) * P(2,2) + v(3) * P(2,3)
+        c = v(1) * P(3,1) + v(2) * P(3,2) + v(3) * P(3,3)
+        v(1) = v(1) - a
+        v(2) = v(2) - b
+        v(3) = v(3) - c
+      else if (size(v) == 2) then
+        a = v(1) * P(1,1) + v(2) * P(1,2)
+        b = v(1) * P(2,1) + v(2) * P(2,2)
+        v(1) = v(1) - a
+        v(2) = v(2) - b
+      endif
+    enddo
+
+    ! Right application
+    do i = 1, min(offset + 4, m)
+      v => H(i, start:end)
+      if (size(v) == 3) then
+        a = v(1) * P(1,1) + v(2) * P(2,1) + v(3) * P(3,1)
+        b = v(1) * P(1,2) + v(2) * P(2,2) + v(3) * P(3,2)
+        c = v(1) * P(1,3) + v(2) * P(2,3) + v(3) * P(3,3)
+        v(1) = v(1) - a
+        v(2) = v(2) - b
+        v(3) = v(3) - c
+      else if (size(v) == 2) then
+        a = v(1) * P(1,1) + v(2) * P(2,1)
+        b = v(1) * P(1,2) + v(2) * P(2,2)
+        v(1) = v(1) - a
+        v(2) = v(2) - b
+      endif
+    enddo
+
+    !call disp('H = ', H)
+
+  end
+
   ! Given an nxn matrix A, the function returns the upper Hessenberg form of A
   function eig_hessenberg_matrix(A) result(H)
     real(real64), parameter :: ulp = radix(1.0_real64) * epsilon(1.0_real64)
@@ -404,6 +474,13 @@ contains
     enddo
 
   end function
+
+  subroutine noop_fallback(err, H)
+    integer, intent(in) :: err
+    real(real64), intent(in) :: H(:,:)
+    nop(err)
+    nop(H)
+  end
 
   subroutine diagnostics(message, k, itermax, s)
     character(*), intent(in) :: message
