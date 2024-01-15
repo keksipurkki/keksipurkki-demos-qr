@@ -5,9 +5,10 @@ SIZE := 10
 OBJS := eigenvalues.o dispmodule.o utils.o benchmarks.o
 PROG := qr
 LIBS := -framework Accelerate
-FLAGS := -std=gnu -fall-intrinsics -ffree-form -fimplicit-none
+FLAGS := -std=gnu -fall-intrinsics -ffree-form -fimplicit-none -std=gnu
 COMPILER := gfortran
-PERF_FLAGS := -std=gnu -ffree-form -fimplicit-none -O3 -march=native -mtune=native -fexternal-blas
+PERF_FLAGS := -ffree-form -fimplicit-none -O3 -march=native -mtune=native
+PERF_FLAGS += -malign-double -funroll-all-loops
 
 ifdef DEBUG
 	FLAGS += -D_DEBUG -gdwarf-4 -g -static-libgfortran -Og -fcheck=all -fbacktrace
@@ -27,7 +28,7 @@ perf: perf.out
 
 perf.out: dlahqr.o dispmodule.o utils.o benchmarks.o perf.F
 	$(COMPILER) $(PERF_FLAGS) -c eigenvalues.F -o eigenvalues.o
-	$(COMPILER) $(LIBS) $(PERF_FLAGS) eigenvalues.o $^ -o $@
+	$(COMPILER) $(PERF_FLAGS) eigenvalues.o $^ -o $@
 
 scratch: scratch.out
 	./$@.out
