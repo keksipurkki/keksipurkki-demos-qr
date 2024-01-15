@@ -167,11 +167,17 @@ contains
   subroutine trace_callback(err, H)
     integer, intent(in) :: err
     real(real64), intent(in) :: H(:,:)
+    real(real64), save :: tic = -1d0, toc = -1d0
 
     if (err /= 0) error stop err
 
     if (enable_trace) then
+      call disp()
+      toc = tic
+      call cpu_time(tic)
+      if (toc >= 0) call disp('Perf', tic - toc, style='pad')
       call disp('H', H, style='pad', digmax=16)
+      call disp()
     endif
   end subroutine
 
