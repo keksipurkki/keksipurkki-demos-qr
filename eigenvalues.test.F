@@ -8,17 +8,14 @@ program eigenvalues_test
   use iso_fortran_env
   implicit none
 
-  integer :: info
-
   call test_suite_prepare()
   call test(assert_eig_hessenberg_matrix_identity_noop)
   call test(assert_eig_hessenberg_matrix_some_matrix_is_expected)
   call test(assert_eig_hessenberg_matrix_twice_same_up_to_sign)
   call test(assert_eig_epsilon_perturbation_no_overflow)
   call test(assert_eig_big_identity_matrix_works)
-  call test(assert_eig_rectangular_matrix_does_not_work)
-  call test(assert_eig_bad_itermax_does_not_work)
-  call test(assert_eig_itermax_one_no_convergence)
+  call test(assert_eig_rectangular_matrix_early_return)
+  call test(assert_eig_bad_itermax_no_convergence)
   call test(assert_eig_singular_zero_eigenvalue)
   call test(assert_eig_repeated_expected)
   call test(assert_eig_complex_eigenvalues_strictly_conjugates)
@@ -79,7 +76,7 @@ contains
     identity = eye(s)
 
     expected = cmplx(1.0d0, kind=real64)
-    actual = eig_hessenberg(identity, info)
+    actual = eig_hessenberg(identity)
     ok = all(expected == actual)
 
     call it%ok(ok, 'Should be fast')
@@ -87,7 +84,6 @@ contains
 
   subroutine assert_eig_epsilon_perturbation_no_overflow(it)
     type(test_run), intent(inout) :: it
-    integer :: info
     real(real64), parameter :: eps = epsilon(1.0_real64)
     real(real64), allocatable :: actual(:), expected(:)
     real(real64) :: input(2,2)
@@ -97,7 +93,7 @@ contains
     input(1,:) = [1.0d0, 1.0d0 + eps]
     input(2,:) = [1.0d0, 1.0d0]
 
-    call eig(input, actual, info)
+    call eig(input, actual)
     call it%ok(all(actual == expected))
   end
 
@@ -113,7 +109,7 @@ contains
     input(1,:) = [1.0d0, 1.0d0]
     input(2,:) = [1.0d0, 1.0d0]
 
-    call eig(input, actual, info)
+    call eig(input, actual)
 
     ok = all(actual == expected)
     call it%ok(ok)
@@ -131,50 +127,44 @@ contains
     input(1,:) = [1.0d0, 3.0d0]
     input(2,:) = [0.0d0, 1.0d0]
 
-    call eig(input, actual, info)
+    call eig(input, actual)
 
     ok = all(actual == expected)
     call it%ok(ok)
   end
 
-  subroutine assert_eig_rectangular_matrix_does_not_work(it)
+  subroutine assert_eig_rectangular_matrix_early_return(it)
     type(test_run), intent(inout) :: it
     logical :: ok
     real(real64), allocatable :: L(:)
-    integer :: info
     real(real64) :: input(2,1) = 0.0d0
-    call eig(input, L, info=info)
-    ok = info == EIG_ERR_RECTANGULAR_MATRIX
-    call it%ok(ok)
+    call eig(input, L)
+    ok = all(L == 0.0d0)
+    call it%ok(ok, 'Expected early return')
   end
 
-  subroutine assert_eig_bad_itermax_does_not_work(it)
+  subroutine assert_eig_bad_itermax_no_convergence(it)
     type(test_run), intent(inout) :: it
     real(real64), allocatable :: L(:)
-    integer :: a, b, expected(2)
-    real(real64) :: input(2,2) = 0.0d0
-    expected = EIG_ERR_NO_CONVERGENCE
+    logical :: ok(3)
+    integer :: itermax
+    real(real64) :: input(50, 50)
 
-    call eig(input, L, itermax=0, info=a)
-    call eig(input, L, itermax=-1, info=b)
-
-    call it%ok(all([a,b] == expected))
-  end
-
-  subroutine assert_eig_itermax_one_no_convergence(it)
-    type(test_run), intent(inout) :: it
-    real(real64), allocatable :: L(:)
-    real(real64) :: input(5,5) = 0.0d0
     call random_number(input)
-    input = 10*input
-    call eig(input, L, itermax=1, info=info)
-    call it%ok(info == EIG_ERR_NO_CONVERGENCE, 'Expected no convergence')
+    input = 10.0d0*input
+
+    do itermax = 1, -1, -1
+      call eig(input, L, itermax=itermax)
+      ok(itermax + 2) = all(L == 0.0d0)
+      deallocate(L)
+    enddo
+
+    call it%ok(all(ok), 'Expected early return')
   end
 
   subroutine assert_eig_complex_eigenvalues_strictly_conjugates(it)
     real(real64), parameter :: tol = 2*epsilon(1.0_real64)
     type(test_run), intent(inout) :: it
-    integer :: info
     complex(real64), allocatable :: L(:)
     real(real64), allocatable :: X(:, :)
     real(real64) :: N(2,2), tr, det
@@ -187,7 +177,7 @@ contains
     call random_number(N)
     X = X + 1e-3*N
 
-    call eig(X, L, info=info)
+    call eig(X, L)
 
     det = X(1,1)*X(2,2) - X(1,2)*X(2,1)
     tr = X(1,1) + X(2,2)
@@ -202,9 +192,6 @@ contains
     real(real64), pointer :: diag(:)
     real(real64), allocatable :: actual(:), expected(:)
     real(real64) :: err, tol
-    integer :: info
-
-    call disp_set(digmax=16)
 
     expected = [1d0, 2d0, 3d0]
 
@@ -218,7 +205,7 @@ contains
     diag = expected
 
     Y = matmul(X, matmul(Y, transpose(X)))
-    call eig(Y, actual, info)
+    call eig(Y, actual)
 
     actual = sorted(actual)
 

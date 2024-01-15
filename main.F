@@ -4,6 +4,7 @@ module parameters
   use iso_fortran_env
   implicit none
   real(real64), parameter :: max_relative_error = 1e-10
+  logical :: enable_trace = .false.
   integer :: ndim = 10
   integer :: ntimes = 10
   contains
@@ -11,7 +12,7 @@ module parameters
   subroutine read_parameters(fname)
     character(len=*), intent(in) :: fname
     integer :: io, rc
-    namelist /config/ ndim, ntimes
+    namelist /config/ ndim, ntimes, enable_trace
 
     inquire (file=fname, iostat=rc)
 
@@ -78,7 +79,6 @@ contains
 
     complex(real64), allocatable :: L(:), LL(:)
     real(real64), allocatable :: err(:, :)
-    integer :: info
     character(:), allocatable :: fmt
 
 #ifdef _DEBUG
@@ -97,7 +97,7 @@ contains
     call disp('X = ', X)
 #endif
 
-    call eig(X, L, info=info)
+    call eig(X, L, callback=trace_callback)
     call eig_lapack(X, LL, n)
 
     L = sorted(L)
@@ -162,6 +162,17 @@ contains
     open (newunit=io, file=fname, status='replace', action='write', encoding='utf-8')
     call disp(V, unit=io, digmax=digmax)
     close (io)
+  end subroutine
+
+  subroutine trace_callback(err, H)
+    integer, intent(in) :: err
+    real(real64), intent(in) :: H(:,:)
+
+    if (err /= 0) error stop err
+
+    if (enable_trace) then
+      call disp('H', H, style='pad', digmax=16)
+    endif
   end subroutine
 
 end program

@@ -9,7 +9,8 @@ program perf
   implicit none
 
   integer, parameter :: ntimes = 10, ndim = 400
-  integer :: k, info = 0
+  integer :: k
+  integer :: info
   real(real64), allocatable :: H(:,:)
   complex(real64), allocatable :: L(:), Lref(:)
   real(real64) :: tic, toc, t(ntimes), tlapack, tavg
@@ -19,9 +20,8 @@ program perf
   t = 0.0d0
   do k = 1, ntimes
     call cpu_time(toc)
-    L = eig_hessenberg(H, info)
+    L = eig_hessenberg(H)
     call cpu_time(tic)
-    call assert(info == 0, 'No convergence')
     t(k) = tic - toc
   enddo
 
