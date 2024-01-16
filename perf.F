@@ -27,7 +27,6 @@ program perf
 
   tavg = sum(t) / size(t)
 
-
   t = 0.0d0
   do k = 1, ntimes
     call cpu_time(toc)
@@ -62,7 +61,7 @@ contains
     Lreal = 0.0d0
     Limag = 0.0d0
     H = X
-    call my_dlahqr(.false., .false., n, 1, n, H, n, Lreal, Limag, 1, n, Z, 1, info)
+    call dlahqr(.false., .false., n, 1, n, H, n, Lreal, Limag, 1, n, Z, 1, info)
     L = cmplx(Lreal, Limag, kind=real64)
   end
 

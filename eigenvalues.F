@@ -96,12 +96,7 @@ contains
       return
     end if
 
-    sup => diagonal(H, -1)
-    diag => diagonal(H)
     sub => diagonal(H, 1)
-
-    ! Side-effect: overwrites subdiagonal of H
-    sub = eig_truncated_subdiagonal(diag, sub, sup)
 
     ! Upper triangular matrix
     if (all(sub == zero)) then
@@ -145,10 +140,6 @@ contains
 
       k = k + 1
     end do
-
-!#ifdef _DEBUG
-!    call diagnostics('k =', k, itermax_m, shape(H))
-!#endif
 
     call cb(0, H)
     L = eig_hessenberg(H, itermax_m - k, cb)
@@ -488,15 +479,15 @@ contains
     nop(H)
   end
 
-  subroutine diagnostics(message, k, itermax, s)
-    character(*), intent(in) :: message
-    integer, intent(in) :: k, itermax, s(2)
-    integer :: width
-    width = nint(log10(1.0d0 * itermax)) + 1
-    call disp(message, advance='no')
-    call disp(k, advance='no', fmt='I'//tostring(width)//'.'//tostring(width))
-    call disp('itermax = ', itermax, advance='no')
-    call disp('shape = ', s, orient='row', advance='yes')
-  end subroutine
+  !subroutine diagnostics(message, k, itermax, s)
+  !  character(*), intent(in) :: message
+  !  integer, intent(in) :: k, itermax, s(2)
+  !  integer :: width
+  !  width = nint(log10(1.0d0 * itermax)) + 1
+  !  call disp(message, advance='no')
+  !  call disp(k, advance='no', fmt='I'//tostring(width)//'.'//tostring(width))
+  !  call disp('itermax = ', itermax, advance='no')
+  !  call disp('shape = ', s, orient='row', advance='yes')
+  !end subroutine
 
 end module

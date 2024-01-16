@@ -1,14 +1,21 @@
 .EXTRA_PREREQS:= $(abspath $(lastword $(MAKEFILE_LIST)))
 
+OS := $(shell uname)
 DEBUG := 1
-SIZE := 10
 OBJS := eigenvalues.o dispmodule.o utils.o benchmarks.o
 PROG := qr
 LIBS := -framework Accelerate
-FLAGS := -std=gnu -fall-intrinsics -ffree-form -fimplicit-none -std=gnu
+FLAGS := -std=gnu -fall-intrinsics -ffree-form -fimplicit-none
 COMPILER := gfortran
-PERF_FLAGS := -ffree-form -fimplicit-none -O3 -march=native -mtune=native
-PERF_FLAGS += -malign-double -funroll-all-loops
+PERF_FLAGS := -O3 -march=native -mtune=native -malign-double -funroll-all-loops
+
+ifeq ($(OS), Darwin)
+	LIBS := -framework Accelerate
+endif
+
+ifeq ($(OS), Linux)
+	LIBS := -llapack
+endif
 
 ifdef DEBUG
 	FLAGS += -D_DEBUG -gdwarf-4 -g -static-libgfortran -Og -fcheck=all -fbacktrace
@@ -27,8 +34,8 @@ perf: perf.out
 	./$@.out
 
 perf.out: dlahqr.o dispmodule.o utils.o benchmarks.o perf.F
-	$(COMPILER) $(PERF_FLAGS) -c eigenvalues.F -o eigenvalues.o
-	$(COMPILER) $(PERF_FLAGS) eigenvalues.o $^ -o $@
+	$(COMPILER) $(FLAGS) $(PERF_FLAGS) -c eigenvalues.F -o eigenvalues.o
+	$(COMPILER) $(FLAGS) $(PERF_FLAGS) eigenvalues.o $^ -o $@
 
 scratch: scratch.out
 	./$@.out
@@ -43,7 +50,7 @@ test.out: $(OBJS) eigenvalues.test.F
 	@$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
 
 dlahqr.o: dlahqr.F
-	$(COMPILER) -c -std=legacy dlahqr.F -o dlahqr.o
+	$(COMPILER) $(PERF_FLAGS) -c -std=legacy dlahqr.F -o dlahqr.o
 
 $(PROG): $(OBJS) main.F
 	$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
