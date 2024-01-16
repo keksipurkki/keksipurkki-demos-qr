@@ -8,7 +8,7 @@ program perf
   use benchmarks, only: pseudo_random_lower_hessenberg
   implicit none
 
-  integer, parameter :: ntimes = 10, ndim = 400
+  integer, parameter :: ntimes = 10, ndim = 500
   integer :: k
   integer :: info
   real(real64), allocatable :: H(:,:)
@@ -27,7 +27,6 @@ program perf
 
   tavg = sum(t) / size(t)
 
-  write(output_unit, '("Average = ", G0)') tavg
 
   t = 0.0d0
   do k = 1, ntimes
@@ -40,25 +39,21 @@ program perf
 
   tlapack = sum(t) / size(t)
 
+  write(output_unit, '("Average = ", G0)') tavg
   write(output_unit, '("Average = ", G0)') tlapack
 
-  do k = 1, ndim
-    write(output_unit, *) L(k)
-  enddo
-
-  write(output_unit, *)
-
-  do k = 1, ndim
-    write(output_unit, *) Lref(k)
-  enddo
-
-  print *, 'LAPACK speed up ', tavg/tlapack
+  if (tavg < tlapack) then
+    print *, 'Faster than LAPACK by a factor of', (tavg/tlapack)**(-1)
+  else
+    print *, 'Slower than LAPACK by a factor of', (tavg/tlapack)
+  endif
 
 contains
 
   subroutine eig_lapack(X, L, n, info)
     real(real64), intent(in) :: X(:, :)
     integer, intent(out) :: info
+    real(real64), allocatable :: H(:,:)
     complex(real64), allocatable, intent(out) :: L(:)
     integer, intent(in) :: n
     real(real64) :: Lreal(n), Limag(n)
@@ -66,7 +61,8 @@ contains
 
     Lreal = 0.0d0
     Limag = 0.0d0
-    call my_dlahqr(.false., .false., n, 1, n, X, n, Lreal, Limag, 1, n, Z, 1, info)
+    H = X
+    call my_dlahqr(.false., .false., n, 1, n, H, n, Lreal, Limag, 1, n, Z, 1, info)
     L = cmplx(Lreal, Limag, kind=real64)
   end
 
