@@ -1,15 +1,26 @@
 #define test(test_case) test_suite___(test_case, 'test_case')
-#define test_suite_prepare() test_suite_prepare___(__FILE__)
-#define test_suite_run() test_suite_run___(__FILE__)
+#define test_suite_prepare(cfg) test_suite_prepare___(__FILE__, cfg)
 #define assert(ok, message) assert___(__FILE__, __LINE__, ok, message)
 
 module assertions
   use iso_fortran_env
 
   private
+  public :: test_suite_config
   public :: test_run
-  public :: test_suite_prepare___, test_suite___, test_suite_run___
+  public :: test_suite_prepare___, test_suite___, test_suite_run
   public :: assert___
+
+  type test_suite_config
+    private
+
+    procedure(assertion), public, nopass, pointer    :: only => null()
+    type(integer), public, allocatable, dimension(:) :: skip
+
+    character(:), allocatable :: test_suite_heading
+    type(test_case), allocatable :: test_cases(:)
+    integer :: num_tests = 0
+  end type
 
   type test_case
     procedure(assertion), nopass, pointer :: assertion
@@ -38,8 +49,8 @@ module assertions
     end
   end interface
 
-  integer :: num_tests = 0
-  type(test_case), allocatable :: test_cases(:)
+  type(test_suite_config) :: config = test_suite_config()
+
   character(4) :: ansi_reset
   character(5) :: ansi_red_fg
 
@@ -51,6 +62,11 @@ contains
     integer, intent(out) :: rc
     character(128) :: command
     character(128) :: message
+
+    if (any(config%skip == self%test_case%test_id)) then
+      call self%skip()
+      return
+    endif
 
     write(command, '(A,X,A)') trim(argv0), self%test_case%name
     call execute_command_line(command, wait=.true., exitstat=rc)
@@ -94,8 +110,7 @@ contains
     class(test_run) :: self
     character(128) :: fmt, tmp
     character(:), allocatable :: str
-    write(fmt, '("I",I0)') ceiling(log10(1.0d0 * num_tests)) + 1
-    fmt = "(A, X, " // trim(fmt) // ", A)"
+    fmt = "(A, X, I0, A)"
     write(tmp, fmt) self%status(), self%test_case%test_id, ' - '//self%description()
     allocate(character(len_trim(tmp))::str)
     str = trim(tmp)
@@ -137,32 +152,41 @@ contains
     procedure(assertion) :: it
     character(*), intent(in) :: test_case_name
     type(test_case), allocatable :: copy(:)
+    integer :: num_tests
 
-    if (.not.allocated(test_cases)) then
-      allocate(test_cases(10))
+    num_tests = config%num_tests
+
+    if (.not.allocated(config%test_cases)) then
+      allocate(config%test_cases(10))
     endif
 
-    if (num_tests >= size(test_cases)) then
-      copy = test_cases
-      deallocate(test_cases)
-      allocate(test_cases(2*num_tests))
-      test_cases(1:num_tests) = copy
+    if (num_tests >= size(config%test_cases)) then
+      copy = config%test_cases
+      deallocate(config%test_cases)
+      allocate(config%test_cases(2*num_tests))
+      config%test_cases(1:num_tests) = copy
     endif
 
     num_tests = num_tests + 1
-    test_cases(num_tests) = test_case(assertion=it, test_id=num_tests, name=test_case_name)
+
+    config%num_tests = num_tests
+    config%test_cases(num_tests) = test_case(assertion=it, test_id=num_tests, name=test_case_name)
 
   end
 
-  subroutine test_suite_prepare___(heading)
+  subroutine test_suite_prepare___(heading, cfg)
     integer, parameter :: SIGFPE = 8
     integer, parameter :: SIGSEGV = 11
     character(*), intent(in), optional :: heading
-    if (present(heading)) continue
+    type(test_suite_config), intent(in), optional :: cfg
+
     call signal(SIGFPE, signal_handler)
     call signal(SIGSEGV, signal_handler)
     ansi_red_fg = transfer([integer(int8) ::  27, 91, 51, 49, 109], ansi_red_fg)
     ansi_reset = transfer([integer(int8) :: 27, 91, 48, 109], ansi_reset)
+
+    config = cfg
+    config%test_suite_heading = heading
   end subroutine
 
   ! POSIX.1-2017:  void (*func)(int)
@@ -172,26 +196,31 @@ contains
     error stop signum
   end subroutine
 
-  subroutine test_suite_run___(heading)
-    character(*), intent(in) :: heading
+  recursive subroutine test_suite_run()
 
     ! Cmdline
     integer :: nargs
     character(128) :: argv0, arg
 
+    if (associated(config%only)) then
+      call test_suite_run_only(config%only)
+      call test_suite_run()
+      return
+    endif
+
     nargs = command_argument_count()
 
     select case(nargs)
       case (0)
-        write(output_unit, '(A, A)') 'Test suite: ', heading
+        write(output_unit, '(A, A)') 'Test suite: ', config%test_suite_heading
         write(output_unit, '(80("-"))')
         call get_command_argument(0, argv0)
-        call test_suite_run_xyz(trim(argv0))
+        call run(trim(argv0))
         return
       case (1)
         call get_command_argument(0, argv0)
         call get_command_argument(1, arg)
-        call test_suite_run_xyz(trim(argv0), test_case_name=trim(arg))
+        call run(trim(argv0), test_case_name=trim(arg))
         return
       case default
         call assert(nargs < 2, 'Expected zero or one arguments')
@@ -199,21 +228,25 @@ contains
 
   end subroutine
 
-  subroutine test_suite_run_xyz(cmd, test_case_name)
+  subroutine run(cmd, test_case_name)
     character(*), intent(in) :: cmd
     character(*), optional, intent(in) :: test_case_name
-    integer :: i, rc
+    integer :: i, rc, num_tests
+    type(test_case), allocatable :: test_cases(:)
     type(test_case), allocatable :: it
-    type(test_run) :: run
+    type(test_run) :: r
     logical :: ok
+
+    test_cases = config%test_cases
+    num_tests = config%num_tests
 
     if (.not.present(test_case_name)) then
 
       ok = .true.
 
       do i = 1, num_tests
-        run = test_run(test_case=test_cases(i))
-        call run%execute(cmd, rc)
+        r = test_run(test_case=test_cases(i))
+        call r%execute(cmd, rc)
         if (rc /= 0) ok = .false.
       enddo
 
@@ -229,16 +262,31 @@ contains
       enddo
 
       call assert(allocated(it), 'No such test: ' // test_case_name)
-      run = test_run(test_case=it)
+      r = test_run(test_case=it)
 
-      call it%assertion(run)
-      ok = run%outcome
+      call it%assertion(r)
+      ok = r%outcome
 
       ! NB: The stop and error stop intrinsics output noise
       if (.not.ok) call exit(1)
       if (ok) call exit(0)
 
     endif
+  end
+
+  subroutine test_suite_run_only(it)
+    procedure(assertion), pointer :: it
+    integer :: i
+
+    do i = 1, config%num_tests
+      if (associated(config%test_cases(i)%assertion, it)) then
+        exit
+      endif
+    enddo
+
+    config%test_cases = [config%test_cases(i)]
+    config%num_tests = size(config%test_cases)
+    config%only => null()
   end
 
 end module

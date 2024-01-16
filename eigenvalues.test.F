@@ -8,7 +8,11 @@ program eigenvalues_test
   use iso_fortran_env
   implicit none
 
-  call test_suite_prepare()
+  type(test_suite_config) :: cfg = test_suite_config()
+  cfg%only => null()
+  cfg%skip = [integer::]
+
+  call test_suite_prepare(cfg)
   call test(assert_eig_hessenberg_matrix_identity_noop)
   call test(assert_eig_hessenberg_matrix_some_matrix_is_expected)
   call test(assert_eig_hessenberg_matrix_twice_same_up_to_sign)
