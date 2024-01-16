@@ -86,8 +86,6 @@ contains
       return
     end if
 
-    call cb(0, H)
-
     if (m == 2) then
       L = eig_trivial(H)
       return
@@ -148,10 +146,11 @@ contains
       k = k + 1
     end do
 
-#ifdef _DEBUG
-    call diagnostics('k =', k, itermax_m, shape(H))
-#endif
+!#ifdef _DEBUG
+!    call diagnostics('k =', k, itermax_m, shape(H))
+!#endif
 
+    call cb(0, H)
     L = eig_hessenberg(H, itermax_m - k, cb)
 
   end

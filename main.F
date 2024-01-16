@@ -7,6 +7,13 @@ module parameters
   logical :: enable_trace = .false.
   integer :: ndim = 10
   integer :: ntimes = 10
+
+#ifdef _DEBUG
+  character(*), parameter :: fmt = 'ES16.10'
+#else
+  character(*), parameter :: fmt = 'ES15.3'
+#endif
+
   contains
 
   subroutine read_parameters(fname)
@@ -79,13 +86,6 @@ contains
 
     complex(real64), allocatable :: L(:), LL(:)
     real(real64), allocatable :: err(:, :)
-    character(:), allocatable :: fmt
-
-#ifdef _DEBUG
-  fmt = 'ES16.10'
-#else
-  fmt = 'ES15.3'
-#endif
 
     allocate (err(2, n), source=0.0d0)
 
@@ -94,7 +94,7 @@ contains
     call disp(repeat('*', 121))
     call disp()
 #ifdef _DEBUG
-    call disp('X = ', X)
+    call output('data.txt', X, digmax=15)
 #endif
 
     call eig(X, L, callback=trace_callback)
@@ -155,13 +155,20 @@ contains
 
   subroutine output(fname, V, digmax)
     character(len=*), intent(in) :: fname
-    real(real64), intent(in) :: V(:)
+    real(real64), intent(in) :: V(..)
     integer, intent(in) :: digmax
     integer :: io
 
-    open (newunit=io, file=fname, status='replace', action='write', encoding='utf-8')
-    call disp(V, unit=io, digmax=digmax)
-    close (io)
+    select rank(V)
+      rank(1)
+      rank(2)
+        open (newunit=io, file=fname, status='replace', action='write', encoding='utf-8')
+        call disp(V, unit=io, digmax=digmax)
+        close (io)
+      rank default
+        error stop 'Output is only supported for rank-1 and rank-2 arrays'
+    end select
+
   end subroutine
 
   subroutine trace_callback(err, H)
@@ -172,14 +179,15 @@ contains
     if (err /= 0) error stop err
 
     if (enable_trace) then
-      call disp()
+      !call disp()
       toc = tic
       call cpu_time(tic)
       if (toc >= 0) then
-        call disp('perf:', [1.0d0*shape(H), tic - toc], orient='row')
+        call disp('perf: ', shape(H), orient='row', advance='no')
+        call disp(' ', tic - toc, fmt=fmt)
       endif
-      call disp('H', H, style='pad', digmax=16)
-      call disp()
+      !call disp('H', H, style='pad', digmax=16)
+      !call disp()
     endif
   end subroutine
 
