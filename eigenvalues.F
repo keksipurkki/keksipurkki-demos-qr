@@ -397,8 +397,8 @@ contains
     real(real64), intent(in) :: vec(:)
 
     real(real64) :: u(size(vec))
-    real(real64), pointer :: v(:)
-    real(real64), allocatable :: urow(:, :), ucol(:, :), P(:, :)
+    real(real64), pointer :: v(:), P(:,:)
+    real(real64), target :: P2(2,2), P3(3,3)
     integer :: start, end, offset, m, i
     real(real64) :: a,b,c
 
@@ -408,10 +408,17 @@ contains
     m = size(H, 1)
 
     u = eig_reflector(vec, dim=1)
-    urow = reshape(u, [1, size(u)])
-    ucol = reshape(u, [size(u), 1])
 
-    P = matmul(2.0*ucol, urow)
+    if (size(u) == 3) then
+      P3(:, 1) = 2.0d0*u*u(1)
+      P3(:, 2) = 2.0d0*u*u(2)
+      P3(:, 3) = 2.0d0*u*u(3)
+      P => P3
+    else if (size(u) == 2) then
+      P2(:, 1) = 2.0d0*u*u(1)
+      P2(:, 2) = 2.0d0*u*u(2)
+      P => P2
+    endif
 
     ! Left application
     do i = offset, m
