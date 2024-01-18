@@ -3,7 +3,6 @@
 module parameters
   use iso_fortran_env
   implicit none
-  real(real64), parameter :: max_relative_error = 1e-10
   logical :: enable_trace = .false.
   integer :: ndim = 10
   integer :: ntimes = 10
@@ -43,7 +42,7 @@ program main
   use eigenvalues
   use assertions
   use benchmarks, only: benchmark_data
-  use benchmarks, only: pseudo_random_lower_hessenberg
+  use benchmarks, only: rotation_matrix
   use iso_fortran_env
   implicit none
 
@@ -60,7 +59,7 @@ program main
   call disp('ntimes = ', ntimes)
 
   do k = 1, ntimes
-    call benchmark(ndim, pseudo_random_lower_hessenberg)
+    call benchmark(ndim)
   enddo
 
   ! ... Frank matrix
@@ -79,78 +78,55 @@ program main
 
 contains
 
-  subroutine benchmark(n, src)
+  subroutine benchmark(n)
     integer, intent(in) :: n
-    procedure(benchmark_data) :: src
-    real(real64), allocatable :: X(:, :)
+    real(real64), allocatable :: M(:,:), X(:, :)
+    real(real64), allocatable :: LL(:)
+    real(real64) :: max_relative_error
 
-    complex(real64), allocatable :: L(:), LL(:)
+    complex(real64), allocatable :: L(:)
     real(real64), allocatable :: err(:, :)
+    integer :: k
 
-    allocate (err(2, n), source=0.0d0)
+    max_relative_error = 1d-13 ! TODO: Work on this
+    allocate (err(n, 2), source=0.0d0)
 
-    X = src(n)
+    LL = [( 1d0*k, k = 1, n )]
+    M = rotation_matrix(n)
+
+    X = matmul(M, matmul(diagonal_matrix(LL), transpose(M)))
 
     call disp(repeat('*', 121))
     call disp()
+
 #ifdef _DEBUG
     call output('data.txt', X, digmax=15)
 #endif
 
     call eig(X, L, callback=trace_callback)
-    call eig_lapack(X, LL, n)
-
     L = sorted(L)
-    LL = sorted(LL)
 
-    if (all(imag([L,LL]) == 0.d0)) then
+    err(:, 1) = abs(1.0d0 - (L / LL))
+    err(:, 2) = abs(L - LL)
 
-      err(1, :) = abs(1.0d0 - real(L) / real(LL))
-      err(2, :) = abs(real(L) - real(LL))
+    call disp()
+    call disp('Error tolerance = ', max_relative_error)
+    call disp('Maximum relative error = ', maxval(err(:, 1)))
+    call disp('Maximum absolute error = ', maxval(err(:, 1)))
+    call disp()
 
-      call disp()
-      call disp('Maximum relative error = ', maxval(err(1, :)))
-      call disp('Maximum absolute error = ', maxval(err(2, :)))
-      call disp()
-
+    if (all(L == conjg(L))) then
       call disp('Λ', real(L), style='pad', advance='no')
       call disp('Λref', real(LL), style='pad', advance='no')
-
     else
-
-      err(1, :) = abs(1.0d0 - L / LL)
-      err(2, :) = abs(L - LL)
-
-      call disp()
-      call disp('Maximum relative error = ', maxval(err(1, :)))
-      call disp('Maximum absolute error = ', maxval(err(2, :)))
-      call disp()
-
       call disp('Λ', L, style='pad', advance='no')
       call disp('Λref', LL, style='pad', advance='no')
-
     endif
 
-    call disp('Rel. error', err(1, :), fmt=fmt, style='pad', advance='no')
-    call disp('Abs. error', err(2, :), fmt=fmt, style='pad')
-    call assert(maxval(err(1, :)) < max_relative_error, 'Maximum error threshold exceeded')
+    call disp('Rel. error', err(:, 1), fmt=fmt, style='pad', advance='no')
+    call disp('Abs. error', err(:, 2), fmt=fmt, style='pad')
+    call assert(maxval(err(:, 1)) < max_relative_error, 'Maximum error threshold exceeded')
 
-  end
-
-  subroutine eig_lapack(X, L, n)
-    real(real64), intent(in) :: X(:, :)
-    complex(real64), allocatable, intent(out) :: L(:)
-    integer, intent(in) :: n
-    real(real64) :: Lreal(n), Limag(n)
-    real(real64) :: Z(1, 1), H(n, n)
-    integer :: info
-
-    Lreal = 0.0d0
-    Limag = 0.0d0
-    H = eig_hessenberg_matrix(X)
-    call dlahqr(.false., .false., n, 1, n, H, n, Lreal, Limag, 1, n, Z, 1, info)
-    call assert(info == 0, 'dlahqr failed')
-    L = cmplx(Lreal, Limag, kind=real64)
   end
 
   subroutine output(fname, V, digmax)
@@ -179,15 +155,15 @@ contains
     if (err /= 0) error stop err
 
     if (enable_trace) then
-      !call disp()
+      call disp()
       toc = tic
       call cpu_time(tic)
       if (toc >= 0) then
         call disp('perf: ', shape(H), orient='row', advance='no')
         call disp(' ', tic - toc, fmt=fmt)
       endif
-      !call disp('H', H, style='pad', digmax=16)
-      !call disp()
+      call disp('H', H, style='pad', digmax=16)
+      call disp()
     endif
   end subroutine
 

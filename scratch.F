@@ -1,26 +1,25 @@
 program test
   use iso_fortran_env
   use display
+  use benchmarks, only: rotation_matrix
   use utils
   implicit none
 
-  integer :: i
-  real(real64), target :: a(3,3)
-  real(real64), pointer :: diag(:)
+  real(real64), target :: a(3,3), diag(3,3)
+  real(real64), pointer :: L(:)
 
   call disp_set(orient='row')
 
-  a = reshape([( i, i = 1, size(a) )], shape(a))
-  !call disp(a)
-  !call disp()
+  a = rotation_matrix(3)
+  call disp('A = ', a)
 
-  !call disp(diagonal(a, -1))
-  !call disp(diagonal(a))
-  !call disp(diagonal(a, 1))
+  diag = 0.0d0
+  L => diagonal(diag)
+  L = [-1, 2, 4]
 
-  diag => diagonal(a)
+  call disp(diag)
 
-  call disp(reshape([diag(2:),-diag(1:)], [2, 2], order=[2,1]))
+  call disp(matmul(diag, a))
 
   contains
 

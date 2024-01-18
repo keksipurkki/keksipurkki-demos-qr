@@ -1,4 +1,5 @@
 &config
+enable_trace = .true.
 ndim = 10
 ntimes = 10
 /

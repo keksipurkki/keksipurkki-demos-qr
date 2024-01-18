@@ -89,6 +89,17 @@ contains
     enddo
   end function
 
+  function diagonal_matrix(vec)
+    real(real64), intent(in) :: vec(:)
+    real(real64), allocatable, target :: diagonal_matrix(:,:)
+    real(real64), pointer :: diag(:)
+    integer :: n
+    n = size(vec)
+    allocate(diagonal_matrix(n, n), source=0.0d0)
+    diag => diagonal(diagonal_matrix)
+    diag = vec
+  end function
+
   pure function zeros(n)
     integer, intent(in) :: n
     real(real64) :: zeros(n)
