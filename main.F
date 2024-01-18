@@ -112,7 +112,7 @@ contains
     call disp()
     call disp('Error tolerance = ', max_relative_error)
     call disp('Maximum relative error = ', maxval(err(:, 1)))
-    call disp('Maximum absolute error = ', maxval(err(:, 1)))
+    call disp('Maximum absolute error = ', maxval(err(:, 2)))
     call disp()
 
     if (all(L == conjg(L))) then
