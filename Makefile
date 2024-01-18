@@ -40,7 +40,7 @@ perf.out: dlahqr.o dispmodule.o utils.o benchmarks.o perf.F
 scratch: scratch.out
 	./$@.out
 
-scratch.out: dispmodule.o utils.o scratch.F
+scratch.out: $(OBJS) scratch.F
 	@$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
 
 test: test.out
