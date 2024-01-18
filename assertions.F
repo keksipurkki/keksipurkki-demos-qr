@@ -204,6 +204,7 @@ contains
 
     if (associated(config%only)) then
       call test_suite_run_only(config%only)
+      config%only => null()
       call test_suite_run()
       return
     endif
@@ -286,7 +287,6 @@ contains
 
     config%test_cases = [config%test_cases(i)]
     config%num_tests = size(config%test_cases)
-    config%only => null()
   end
 
 end module

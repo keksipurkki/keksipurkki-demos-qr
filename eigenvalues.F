@@ -322,9 +322,7 @@ contains
     !      [0,  I]]
     !
     ! where PP = I - 2*u*transpose(u) is a 3x3 Householder reflection matrix
-    !call disp('Horig = ', H)
     call eig_reflect__(H, shifts, 1, 1)
-    !call disp('Hbulged = ', H)
 
     ! Restore upper Hessenberg structure by "bulge chasing"
     do k = 1, m - 2
@@ -336,8 +334,6 @@ contains
     do k = 1, m - 2
       H(k + 2:, k) = 0.0d0
     enddo
-
-    !call disp('Hafter = ', H)
 
   end
 
@@ -479,16 +475,5 @@ contains
     nop(err)
     nop(H)
   end
-
-  !subroutine diagnostics(message, k, itermax, s)
-  !  character(*), intent(in) :: message
-  !  integer, intent(in) :: k, itermax, s(2)
-  !  integer :: width
-  !  width = nint(log10(1.0d0 * itermax)) + 1
-  !  call disp(message, advance='no')
-  !  call disp(k, advance='no', fmt='I'//tostring(width)//'.'//tostring(width))
-  !  call disp('itermax = ', itermax, advance='no')
-  !  call disp('shape = ', s, orient='row', advance='yes')
-  !end subroutine
 
 end module
