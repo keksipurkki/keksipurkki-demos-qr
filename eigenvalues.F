@@ -100,6 +100,7 @@ contains
 
     ! Upper triangular matrix
     if (all(sub == zero)) then
+      diag => diagonal(H)
       L = diag
       return
     endif
@@ -377,11 +378,13 @@ contains
     X = matmul(P, X)
 
     ! Right application
-    X => H(1:min(offset + 4, m), start:end)
+    X => H(:, start:end)
     X = matmul(X, P)
 
   end
 
+  ! This takes into account the special structure of the Householder
+  ! transformation in the shifted QR steps
   subroutine eig_reflect__(H, vec, row, col)
     real(real64), intent(inout), target :: H(:, :)
     integer, intent(in) :: row, col
@@ -446,8 +449,6 @@ contains
         v(2) = v(2) - b
       endif
     enddo
-
-    !call disp('H = ', H)
 
   end
 
