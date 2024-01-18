@@ -82,13 +82,13 @@ contains
     integer, intent(in) :: n
     real(real64), allocatable :: M(:,:), X(:, :)
     real(real64), allocatable :: LL(:)
-    real(real64) :: max_relative_error
+    real(real64) :: max_relative_error, tolerance
 
     complex(real64), allocatable :: L(:)
     real(real64), allocatable :: err(:, :)
-    integer :: k
+    integer :: k, pos(1)
 
-    max_relative_error = 1d-13 ! TODO: Work on this
+    tolerance = 1d-13 ! TODO: Work on this
     allocate (err(n, 2), source=0.0d0)
 
     LL = [( 1d0*k, k = 1, n )]
@@ -109,9 +109,11 @@ contains
     err(:, 1) = abs(1.0d0 - (L / LL))
     err(:, 2) = abs(L - LL)
 
+    max_relative_error = maxval(err(:, 1))
+
     call disp()
-    call disp('Error tolerance = ', max_relative_error)
-    call disp('Maximum relative error = ', maxval(err(:, 1)))
+    call disp('Error tolerance = ', tolerance)
+    call disp('Maximum relative error = ', max_relative_error)
     call disp('Maximum absolute error = ', maxval(err(:, 2)))
     call disp()
 
@@ -125,7 +127,16 @@ contains
 
     call disp('Rel. error', err(:, 1), fmt=fmt, style='pad', advance='no')
     call disp('Abs. error', err(:, 2), fmt=fmt, style='pad')
-    call assert(maxval(err(:, 1)) < max_relative_error, 'Maximum error threshold exceeded')
+
+    if (max_relative_error >= tolerance) then
+      pos = maxloc(err(:,1))
+      k = pos(1)
+      print '(A,X,G0)', 'Exact', LL(k)
+      print '(A,X,G0,X,G0)', 'Computed', L(k)
+      print '(A,X,G0)', 'Abs. Difference', abs(LL(k) - L(k))
+    endif
+
+    call assert(max_relative_error < tolerance, 'Maximum error threshold exceeded')
 
   end
 
