@@ -3,7 +3,6 @@
 OS := $(shell uname)
 DEBUG := 1
 OBJS := eigenvalues.o dispmodule.o utils.o benchmarks.o
-PROG := qr
 LIBS := -framework Accelerate
 FLAGS := -std=gnu -fall-intrinsics -ffree-form -fimplicit-none
 COMPILER := gfortran
@@ -25,7 +24,8 @@ ifdef DEBUG
 	FLAGS += -Wall -Wno-maybe-uninitialized
 endif
 
-all: test input.nml $(PROG)
+all: test input.nml main.out
+	./main.out
 
 input.nml:
 	cat default_input.nml > input.nml
@@ -52,9 +52,8 @@ test.out: $(OBJS) eigenvalues.test.F
 dlahqr.o: dlahqr.F
 	$(COMPILER) $(PERF_FLAGS) -c -std=legacy dlahqr.F -o dlahqr.o
 
-$(PROG): $(OBJS) main.F
+main.out: $(OBJS) main.F
 	$(COMPILER) $(LIBS) $(FLAGS) $^ -o $@
-	./$(PROG)
 
 $(OBJS): %.o: %.F
 	$(COMPILER) $(FLAGS) -c -o $@ $<

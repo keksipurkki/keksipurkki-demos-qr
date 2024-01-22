@@ -1,5 +1,7 @@
 &config
-enable_trace = .true.
+tolerance = 1.0d-13
+enable_trace = .false.
 ndim = 10
-ntimes = 10
+ntimes = 1
+fmt = 'ES16.10'
 /

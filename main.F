@@ -6,20 +6,16 @@ module parameters
   logical :: enable_trace = .false.
   integer :: ndim = 10
   integer :: ntimes = 10
-
-#ifdef _DEBUG
-  character(*), parameter :: fmt = 'ES16.10'
-#else
-  character(*), parameter :: fmt = 'ES15.3'
-#endif
+  real(real64) :: tolerance = 1d-13
+  character(32) :: fmt = 'ES16.10'
 
   contains
 
   subroutine read_parameters(fname)
     character(len=*), intent(in) :: fname
     integer :: io, rc
-    namelist /config/ ndim, ntimes, enable_trace
 
+    namelist /config/ ndim, ntimes, enable_trace, tolerance, fmt
     inquire (file=fname, iostat=rc)
 
     if (rc /= 0) then
@@ -42,7 +38,9 @@ program main
   use eigenvalues
   use assertions
   use benchmarks, only: benchmark_data
-  use benchmarks, only: rotation_matrix
+  use benchmarks, only: pseudo_random_triangular
+  use benchmarks, only: pseudo_random_positive_definite
+  use benchmarks, only: pseudo_random_lower_hessenberg
   use iso_fortran_env
   implicit none
 
@@ -55,18 +53,34 @@ program main
 #endif
 
   call read_parameters('input.nml')
+
+  call disp(repeat('*', 121))
   call disp('ndim = ', ndim)
   call disp('ntimes = ', ntimes)
+  call disp(repeat('*', 121))
 
+  call disp()
+  call disp('pseudo_random_triangular')
   do k = 1, ntimes
-    call benchmark(ndim)
+    call benchmark(ndim, pseudo_random_triangular)
   enddo
+  call disp(repeat('*', 121))
+
+  call disp()
+  call disp('pseudo_random_positive_definite')
+  do k = 1, ntimes
+    call benchmark(ndim, pseudo_random_positive_definite)
+  enddo
+  call disp(repeat('*', 121))
+
+  call disp()
+  call disp('pseudo_random_lower_hessenberg')
+  do k = 1, ntimes
+    call benchmark(ndim, pseudo_random_lower_hessenberg)
+  enddo
+  call disp(repeat('*', 121))
 
   ! ... Frank matrix
-
-  ! ... trivial_matrices
-
-  ! ... positive definite matrices
 
   ! ... non_hermitian_eigenvalue_problems (hand picked)
 
@@ -78,25 +92,24 @@ program main
 
 contains
 
-  subroutine benchmark(n)
+  subroutine benchmark(n, src)
     integer, intent(in) :: n
-    real(real64), allocatable :: M(:,:), X(:, :)
-    real(real64), allocatable :: LL(:)
-    real(real64) :: max_relative_error, tolerance
+    procedure(benchmark_data) :: src
+    real(real64), allocatable :: X(:, :)
+    real(real64) :: max_relative_error
 
-    complex(real64), allocatable :: L(:)
+    complex(real64), allocatable :: L(:), LL(:)
     real(real64), allocatable :: err(:, :)
     integer :: k, pos(1)
 
-    tolerance = 1d-13 ! TODO: Work on this
     allocate (err(n, 2), source=0.0d0)
 
-    LL = [( 1d0*k, k = 1, n )]
-    M = rotation_matrix(n)
+    ! The data matrix
+    X = src(n)
 
-    X = matmul(M, matmul(diagonal_matrix(LL), transpose(M)))
+    call eig_lapack(X, LL)
+    LL = sorted(LL)
 
-    call disp(repeat('*', 121))
     call disp()
 
 #ifdef _DEBUG
@@ -131,8 +144,8 @@ contains
     if (max_relative_error >= tolerance) then
       pos = maxloc(err(:,1))
       k = pos(1)
-      print '(A,X,G0)', 'Exact', LL(k)
-      print '(A,X,G0,X,G0)', 'Computed', L(k)
+      print '(A10,X,G0)', 'Exact', LL(k)
+      print '(A10,X,G0,X,G0)', 'Computed', L(k)
       print '(A,X,G0)', 'Abs. Difference', abs(LL(k) - L(k))
     endif
 
@@ -177,5 +190,21 @@ contains
       call disp()
     endif
   end subroutine
+
+  subroutine eig_lapack(X, L)
+    real(real64), intent(in) :: X(:, :)
+    complex(real64), allocatable, intent(out) :: L(:)
+    real(real64) :: Z(1, 1)
+    real(real64), allocatable :: H(:, :), Lreal(:), Limag(:)
+    integer :: info, n
+
+    n = size(X, 1)
+    allocate(Lreal(n), source=0.0d0)
+    allocate(Limag(n), source=0.0d0)
+    H = eig_hessenberg_matrix(X)
+    call dlahqr(.false., .false., n, 1, n, H, n, Lreal, Limag, 1, n, Z, 1, info)
+    call assert(info == 0, 'dlahqr failed')
+    L = cmplx(Lreal, Limag, kind=real64)
+  end
 
 end program
