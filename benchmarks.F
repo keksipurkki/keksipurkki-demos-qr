@@ -18,38 +18,26 @@ module benchmarks
   end interface
 contains
 
-  ! Kreher & Stinson (1998) https://doi.org/10.1201/9781003068006
   function pseudo_random_permutation(n) result(X)
     integer, intent(in) :: n
-    integer :: rank, i, j, fact, d
+    integer :: i, tmp, j
     real(real64), allocatable :: X(:, :)
     integer, allocatable :: pi(:)
-    real(real64) :: u
+    real(real64), allocatable :: u(:)
 
     allocate (X(n, n), source=0.0d0)
     allocate (pi(n), source=0)
+    allocate (u(n), source=0.0d0)
 
+    pi = [( i, i = 1, n )]
     call random_number(u)
 
-    fact = product([(i, i=1, n)])
-    rank = floor(u * (fact - 1))
-
-    pi(n) = 1
-    fact = 1
-
-    do j = 1, n - 1
-
-      fact = fact * j
-
-      d = mod(rank, (j + 1) * fact) / fact
-      rank = rank - d * fact
-
-      pi(n - j) = d + 1
-
-      do i = n - j + 1, n
-        if (pi(i) > d) pi(i) = pi(i) + 1
-      end do
-    end do
+    do i = n, 2, -1
+      j = floor(u(i) * i) + 1
+      tmp = pi(i)
+      pi(i) = pi(j)
+      pi(j) = tmp
+    enddo
 
     do i = 1, n
       X(pi(i), i) = 1.0d0
