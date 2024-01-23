@@ -41,6 +41,7 @@ program main
   use benchmarks, only: pseudo_random_triangular
   use benchmarks, only: pseudo_random_positive_definite
   use benchmarks, only: pseudo_random_lower_hessenberg
+  use benchmarks, only: pseudo_random_permutation
   use iso_fortran_env
   implicit none
 
@@ -80,13 +81,18 @@ program main
   enddo
   call disp(repeat('*', 121))
 
+  call disp()
+  call disp('pseudo_random_permutation')
+  do k = 1, ntimes
+    call benchmark(ndim, pseudo_random_permutation)
+  enddo
+  call disp(repeat('*', 121))
+
   ! ... Frank matrix
 
   ! ... non_hermitian_eigenvalue_problems (hand picked)
 
   ! ... ieee_754_corner_cases (lambdas are widely different, lambdas are very near each other, one lambda is Infinity?)
-
-  ! ... permutation_matrices, |lambda_i| = 1, i...ndim
 
   ! ... antisymmetrical matrices (purely imaginary eigenvalues)
 
