@@ -50,12 +50,12 @@ contains
     real(real64), intent(in), target :: X(:, :)
     procedure(eig_callback), optional :: callback
     procedure(eig_callback), pointer :: cb
-    integer, intent(in), optional :: itermax
+    integer, value, optional :: itermax
     complex(real64), allocatable :: L(:)
 
     real(real64), allocatable, target :: shifts(:), H(:, :)
     real(real64), pointer :: Hsub(:,:), S(:,:), sub(:), diag(:), sup(:)
-    integer :: m, n, k, i, j, itermax_m
+    integer :: m, n, k, i, j
 
     if (present(callback)) then
       cb => callback
@@ -66,8 +66,12 @@ contains
     allocate(H, mold=X)
 
     H = X
+    call cb(0, H)
+
     m = size(H, 1)
     n = size(H, 2)
+
+    if (.not.present(itermax)) itermax = 30 * m * m
 
     if (.not.allocated(L)) then
       allocate (L(m), source=(zero, zero))
@@ -75,14 +79,6 @@ contains
 
     if (m /= n) then
       call cb(EIG_ERR_RECTANGULAR_MATRIX, H)
-      return
-    end if
-
-    if (.not.present(itermax)) itermax_m = 30 * m * m
-    if (present(itermax)) itermax_m = itermax
-
-    if (itermax_m <= 0) then
-      call cb(EIG_ERR_NO_CONVERGENCE, H)
       return
     end if
 
@@ -105,22 +101,12 @@ contains
       return
     endif
 
-    ! Subdivide the problem at the subdiagonal entries
-    do i = size(sub), 1, -1
-      if (sub(i) == zero) then
-        L(:i) = eig_hessenberg(H(:i, :i), itermax_m, cb)
-        L(i + 1:) = eig_hessenberg(H(i + 1:, i + 1:), itermax_m, cb)
-        return
-      end if
-    end do
-
     ! Perform QR steps until the problem splits
-    k = 0
-    do while (all(sub /= zero))
+    do k = itermax, 0, -1
 
-      if (k >= itermax_m) then
-        exit
-      endif
+      ! Check for subdiagonal zeros
+      i = findloc(sub, zero, dim=1, back=.true.)
+      if (i > 0) exit
 
       ! TODO: Exceptional shifts as in LAPACK
       diag => diagonal(H)
@@ -136,15 +122,20 @@ contains
       diag => diagonal(H)
       sub => diagonal(H, 1)
 
-      ! Side-effect: overwrites subdiagonal of H
       sub = eig_truncated_subdiagonal(diag, sub, sup)
 
-      k = k + 1
     end do
 
-    call cb(0, H)
-    L = eig_hessenberg(H, itermax_m - k, cb)
+    itermax = k
 
+    if (itermax <= 0 .or. i <= 0) then
+      call cb(EIG_ERR_NO_CONVERGENCE, H)
+      return
+    end if
+
+    ! Subdivide the problem at the subdiagonal entries
+    L(i + 1:) = eig_hessenberg(H(i + 1:, i + 1:), itermax, cb)
+    L(:i) = eig_hessenberg(H(:i, :i), itermax, cb)
   end
 
   pure function eig_shift_vector(H, S)
@@ -198,7 +189,7 @@ contains
   ! The second criterion involing the superdiagonal is due to Ahues & Tisseur and has a better theoretical basis.
   !
   ! Reference: Ahues & Tisseur (LAWN 122, 230: 1997)
-  function eig_truncated_subdiagonal(D, sub, super)
+  pure function eig_truncated_subdiagonal(D, sub, super)
     real(real64), intent(in) :: D(:), sub(:), super(:)
     real(real64), allocatable :: thrsd(:,:), adjacent(:, :)
     real(real64), allocatable :: eig_truncated_subdiagonal(:)
@@ -450,7 +441,6 @@ contains
 
   ! Given an nxn matrix A, the function returns the upper Hessenberg form of A
   function eig_hessenberg_matrix(A) result(H)
-    real(real64), parameter :: ulp = radix(1.0_real64) * epsilon(1.0_real64)
     real(real64), intent(in) :: A(:, :)
     real(real64), allocatable, target :: H(:, :)
     integer :: k, n
